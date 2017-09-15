@@ -114,7 +114,10 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        , prenex
 
                        , Flatten
-                       , flatten ) where
+                       , flatten
+
+                       , Unstore
+                       , unstore ) where
 
 import Algebra.Lattice
 import Control.Applicative hiding (Const)
@@ -851,3 +854,50 @@ flatten f = let (a, (_, qs)) = runState (imapM flatten'' f) (freenames f, []) in
         (ns', q') <- get
         put (ns', q ++ q')
         return r
+
+class Forall f g where
+    quantify :: Proxy f -> Sing s -> Maybe ([Var s] -> IFix g 'BooleanSort -> IFix g 'BooleanSort)
+
+instance ( UniversalF v :<: g, SingI v ) => Forall (UniversalF v) g where
+    quantify _ s = case s %~ (sing :: Sing v) of
+        Proved Refl -> Just forall
+        Disproved _ -> Nothing
+
+instance ( Forall f h, Forall g h ) => Forall (f :+: g) h where
+    quantify _ s = quantify (Proxy :: Proxy f) s <|> quantify (Proxy :: Proxy g) s
+
+instance {-# OVERLAPPABLE #-} Forall f g where
+    quantify _ _ = Nothing
+
+class Axiomatized f g where
+    instantiate :: Forall g g => IFix g s -> f (IFix g) s -> Maybe (State [String] (IFix g 'BooleanSort))
+
+instance ( VarF :<: g, ConjunctionF :<: g, DisjunctionF :<: g, NegationF :<: g, EqualityF :<: g, ArrayF :<: g ) => Axiomatized ArrayF g where
+    instantiate a' (Store (is :: Sing is) es a i e) = case quantify (Proxy :: Proxy g) is of
+        Just q -> Just $ do
+            (n : ns) <- get
+
+            let j :: forall f. VarF :<: f => IFix f is
+                j = inject $ Var n is
+
+            put ns
+
+            return $ inject (Equals es (inject (Select is es a' i)) e) .&. q [j] (not (inject (Equals is i j)) .->. inject (Equals es (inject (Select is es a' j)) (inject (Select is es a j))))
+        Nothing -> Nothing
+    instantiate _ _ = Nothing
+
+instance ( Axiomatized f h, Axiomatized g h ) => Axiomatized (f :+: g) h where
+    instantiate v (InL fa) = instantiate v fa
+    instantiate v (InR gb) = instantiate v gb
+
+instance {-# OVERLAPPABLE #-} Axiomatized f g where
+    instantiate _ _ = Nothing
+
+class    ( VarF :<: f, EqualityF :<: f, Bind f f, Bind' f f, MaybeQuantified'' f f, Forall f f, Axiomatized f f, IFoldable f, ITraversable f ) => Unstore f
+instance ( VarF :<: f, EqualityF :<: f, Bind f f, Bind' f f, MaybeQuantified'' f f, Forall f f, Axiomatized f f, IFoldable f, ITraversable f ) => Unstore f
+
+-- | Replaces `store` with an instance of its axiomatization.
+unstore :: forall f. Unstore f => IFix f 'BooleanSort -> IFix f 'BooleanSort
+unstore a = let a' = flatten a in evalState (imapM unstore' a') (freenames a') where
+    unstore' :: IFix f s -> State [String] (IFix f s)
+    unstore' a' = fromMaybe (return a') (match a' >>= \(Equals _ l r) -> instantiate l (unIFix r) <|> instantiate r (unIFix l))

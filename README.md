@@ -82,6 +82,11 @@
     λ> flatten (select (store (var "a") (var "i") (cnst 3)) (cnst 4) .=. var "b" :: L 'BooleanSort)
     (exists ((k0 : array int int)) (and (= (k0 : array int int) (store (a : array int int) (i : int) 3)) (= (select (k0 : array int int) 4) (b : int))))
 
+## replace store terms using axiom
+
+    λ> unstore (select (store (var "a") (var "i") (cnst 3)) (cnst 4) .=. var "b" :: L 'BooleanSort)
+    (exists ((k0 : array int int)) (and (and (= (select (k0 : array int int) (i : int)) 3) (forall ((m0 : int)) (or (= (i : int) (m0 : int)) (= (select (k0 : array int int) (m0 : int)) (select (a : array int int) (m0 : int)))))) (= (select (k0 : array int int) 4) (b : int))))
+
 ---
 
 See [documentation](https://jakubdaniel.github.io/expressions/).
