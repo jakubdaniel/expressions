@@ -15,6 +15,7 @@ module Data.Expression.Utils.Indexed.Functor (IFix(..), IFunctor(..), icata) whe
 
 import Data.Functor.Const
 import Data.Kind
+import Data.Singletons
 
 import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Show
@@ -25,6 +26,7 @@ newtype IFix f i = IFix { unIFix :: f (IFix f) i }
 -- | A functor in indexed category
 class IFunctor (f :: (i -> *) -> (i -> *)) where
     imap :: (forall i'. a i' -> b i') -> (forall i'. f a i' -> f b i')
+    index :: forall a i'. f a i' -> Sing i'
 
 -- | Indexed catamorphism
 icata :: IFunctor f => (forall i. f a i -> a i) -> (forall i. IFix f i -> a i)

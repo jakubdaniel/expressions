@@ -68,6 +68,11 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        , UniversalF(..)
                        , ExistentialF(..)
 
+                       -- Substitution facilities
+                       , Substitution(..)
+                       , substitute
+                       , for
+
                        -- Smart expression constructors
                        , var
                        , true
@@ -98,7 +103,9 @@ import Control.Monad.Trans.Reader
 import Data.List hiding (and, or, union)
 import Data.Map hiding (map, foldr)
 import Data.Maybe
+import Data.Monoid
 import Data.Singletons
+import Data.Singletons.Decide
 import Prelude hiding (and, or, not)
 
 import Data.Expression.Arithmetic
@@ -106,7 +113,7 @@ import Data.Expression.Array
 import Data.Expression.Equality
 import Data.Expression.IfThenElse
 import Data.Expression.Parser
-import Data.Expression.Sort
+import Data.Expression.Sort hiding (index)
 import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
@@ -208,6 +215,7 @@ instance IEq1 VarF where
 
 instance IFunctor VarF where
     imap _ (Var n s) = Var n s
+    index (Var _ s)  = s
 
 instance IShow VarF where
     ishow (Var n s) = F.Const ("(" ++ n ++ " : " ++ show s ++ ")")
@@ -244,6 +252,25 @@ instance VarF :<: f => Parseable VarF f where
 var :: forall f s. ( VarF :<: f, SingI s ) => VariableName -> IFix f s
 var n = inject (Var n (sing :: Sing s))
 
+-- | Substitution that given an expression produces replacement if the expression is to be replaced or nothing otherwise.
+newtype Substitution f = Substitution { runSubstitution :: forall (s :: Sort). IFix f s -> Maybe (IFix f s) }
+
+-- | A simple constructor of substitutions that replaces the latter expression with the former.
+for :: forall f (s :: Sort). ( IFunctor f, IEq1 f ) => IFix f s -> IFix f s -> Substitution f
+b `for` a = Substitution $ \c -> case index (unIFix a) %~ index (unIFix c) of
+    Proved Refl -> if a == c then Just b else Nothing
+    Disproved _ -> Nothing
+
+-- | Executes a substitution.
+substitute :: ( IFunctor f, IEq1 f ) => IFix f s -> Substitution f -> IFix f s
+substitute a s = case runSubstitution s a of
+    Just b -> b
+    Nothing -> IFix . imap (flip substitute s) . unIFix $ a
+
+instance Monoid (Substitution f) where
+    mempty  = Substitution (const Nothing)
+    (Substitution f) `mappend` (Substitution g) = Substitution $ \a -> getFirst (mconcat ([First . f, First . g] <*> [a]))
+
 -- | A functor representing a logical connective for conjunction
 data ConjunctionF a (s :: Sort) where
     And :: [a 'BooleanSort] -> ConjunctionF a 'BooleanSort
@@ -267,12 +294,15 @@ instance IEq1 NegationF where
 
 instance IFunctor ConjunctionF where
     imap f (And as) = And $ map f as
+    index And {} = SBooleanSort
 
 instance IFunctor DisjunctionF where
     imap f (Or os) = Or  $ map f os
+    index Or {} = SBooleanSort
 
 instance IFunctor NegationF where
     imap f (Not n)  = Not $ f n
+    index Not {} = SBooleanSort
 
 instance IShow ConjunctionF where
     ishow (And []) = F.Const $ "true"
@@ -431,9 +461,11 @@ instance IEq1 (ExistentialF v) where
 
 instance IFunctor (UniversalF v) where
     imap f (Forall vs phi) = Forall vs $ f phi
+    index Forall {} = SBooleanSort
 
 instance IFunctor (ExistentialF v) where
     imap f (Exists vs phi) = Exists vs $ f phi
+    index Exists {} = SBooleanSort
 
 instance IShow (UniversalF v) where
     ishow (Forall vs phi) = F.Const $ "(forall (" ++ intercalate " " (map show vs) ++ ") " ++ F.getConst phi ++ ")"

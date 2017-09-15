@@ -38,6 +38,11 @@
     λ> var "a" .+. cnst 1 == (fromJust $ parse "(+ (a : int) 1)" :: ALia 'IntegralSort)
     True
 
+## substituting
+
+    λ> (var "a" .+. (var "a" .+. cnst 3) :: ALia 'IntegralSort) `substitute` (cnst 3 `for` (var "a" .+. cnst 3))
+    (+ (a : int) 3)
+
 ---
 
 See [documentation](https://jakubdaniel.github.io/expressions/).

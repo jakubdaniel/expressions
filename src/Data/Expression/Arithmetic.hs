@@ -67,6 +67,12 @@ instance IFunctor ArithmeticF where
     imap f (c `Divides`  a) = c `Divides` f a
     imap f (a `LessThan` b) = f a `LessThan` f b
 
+    index Const    {} = SIntegralSort
+    index Add      {} = SIntegralSort
+    index Mul      {} = SIntegralSort
+    index Divides  {} = SBooleanSort
+    index LessThan {} = SBooleanSort
+
 instance IShow ArithmeticF where
     ishow (Const c)        = F.Const $ show c
     ishow (Add as)         = F.Const $ "(+ " ++ intercalate " " (map F.getConst as) ++ ")"

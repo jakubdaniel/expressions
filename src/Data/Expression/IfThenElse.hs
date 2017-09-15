@@ -42,6 +42,7 @@ instance IEq1 IfThenElseF where
 
 instance IFunctor IfThenElseF where
     imap f (IfThenElse s i t e) = IfThenElse s (f i) (f t) (f e)
+    index (IfThenElse s _ _ _) = s
 
 instance IShow IfThenElseF where
     ishow (IfThenElse _ i t e) = Const $ "(ite " ++ getConst i ++ " " ++ getConst t ++ " " ++ getConst e ++ ")"

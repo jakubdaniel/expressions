@@ -42,6 +42,7 @@ instance IEq1 EqualityF where
 
 instance IFunctor EqualityF where
     imap f (Equals s a b) = Equals s (f a) (f b)
+    index (Equals _ _ _) = SBooleanSort
 
 instance IShow EqualityF where
     ishow (Equals _ a b) = Const $ "(= " ++ getConst a ++ " " ++ getConst b ++ ")"

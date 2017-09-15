@@ -28,6 +28,9 @@ instance (IFunctor f, IFunctor g) => IFunctor (f :+: g) where
     imap f (InL fa) = InL $ imap f fa
     imap f (InR ga) = InR $ imap f ga
 
+    index (InL fa) = index fa
+    index (InR ga) = index ga
+
 -- | Inclusion relation for indexed sum functors
 class (IFunctor f, IFunctor g) => f :<: g where
     inj :: f a i -> g a i

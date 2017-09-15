@@ -34,23 +34,26 @@ import Data.Expression.Utils.Indexed.Sum
 
 -- | A functor representing array-theoretic terms (`select` and `store` also known as "read" and "write")
 data ArrayF a (s :: Sort) where
-    Select :: Sing i -> a ('ArraySort i e) -> a i        -> ArrayF a e
-    Store  ::           a ('ArraySort i e) -> a i -> a e -> ArrayF a ('ArraySort i e)
+    Select :: Sing i -> Sing e -> a ('ArraySort i e) -> a i        -> ArrayF a e
+    Store  :: Sing i -> Sing e -> a ('ArraySort i e) -> a i -> a e -> ArrayF a ('ArraySort i e)
 
 instance IEq1 ArrayF where
-    Select sa aa ia    `ieq1` Select sb ab ib    = case sa %~ sb of
+    Select isa _ aa ia `ieq1` Select isb _ ab ib = case isa %~ isb of
         Proved Refl -> aa `ieq` ab && ia `ieq` ib
         Disproved _ -> False
-    Store     aa ia va `ieq1` Store     ab ib vb = aa `ieq` ab && ia `ieq` ib && va `ieq` vb
+    Store _ _ aa ia va `ieq1` Store _ _ ab ib vb = aa `ieq` ab && ia `ieq` ib && va `ieq` vb
     _                  `ieq1` _                  = False
 
 instance IFunctor ArrayF where
-    imap f (Select s a i)   = Select s (f a) (f i)
-    imap f (Store    a i e) = Store    (f a) (f i) (f e)
+    imap f (Select is es a i)   = Select is es (f a) (f i)
+    imap f (Store  is es a i e) = Store  is es (f a) (f i) (f e)
+
+    index (Select _  es _ _  ) = es
+    index (Store  is es _ _ _) = SArraySort is es
 
 instance IShow ArrayF where
-    ishow (Select _ a i)   = Const $ "(select " ++ getConst a ++ " " ++ getConst i ++ ")"
-    ishow (Store    a i v) = Const $ "(store " ++ getConst a ++ " " ++ getConst i ++ " " ++ getConst v ++ ")"
+    ishow (Select _ _ a i)   = Const $ "(select " ++ getConst a ++ " " ++ getConst i ++ ")"
+    ishow (Store  _ _ a i v) = Const $ "(store " ++ getConst a ++ " " ++ getConst i ++ " " ++ getConst v ++ ")"
 
 instance ArrayF :<: f => Parseable ArrayF f where
     parser _ r = choice [ select', store' ] <?> "Array" where
@@ -74,7 +77,7 @@ instance ArrayF :<: f => Parseable ArrayF f where
         select'' :: DynamicallySorted f -> DynamicallySorted f -> Parser (DynamicallySorted f)
         select'' (DynamicallySorted (SArraySort is1 es) a)
                  (DynamicallySorted is2                 i) = case is1 %~ is2 of
-            Proved Refl -> return . DynamicallySorted es $ inject (Select is1 a i)
+            Proved Refl -> return . DynamicallySorted es $ inject (Select is1 es a i)
             Disproved _ -> fail "ill-sorted select"
         select'' _ _ = fail "selecting from non-array"
 
@@ -82,14 +85,14 @@ instance ArrayF :<: f => Parseable ArrayF f where
         store''  (DynamicallySorted as@(SArraySort _ _) a)
                  (DynamicallySorted is                  i)
                  (DynamicallySorted es                  v) = case as %~ SArraySort is es of
-            Proved Refl -> return . DynamicallySorted as $ store a i v
+            Proved Refl -> return . DynamicallySorted as $ inject (Store is es a i v)
             Disproved _ -> fail "ill-sorted store"
         store'' _ _ _ = fail "storing to non-array"
 
 -- | A smart constructor for select
-select :: forall f i e. ( ArrayF :<: f, SingI i ) => IFix f ('ArraySort i e) -> IFix f i -> IFix f e
-select a i = inject (Select (sing :: Sing i) a i)
+select :: ( ArrayF :<: f, SingI i, SingI e ) => IFix f ('ArraySort i e) -> IFix f i -> IFix f e
+select a i = inject (Select sing sing a i)
 
 -- | A smart constructor for store
-store :: ArrayF :<: f => IFix f ('ArraySort i e) -> IFix f i -> IFix f e -> IFix f ('ArraySort i e)
-store a i v = inject (Store a i v)
+store :: ( ArrayF :<: f, SingI i, SingI e ) => IFix f ('ArraySort i e) -> IFix f i -> IFix f e -> IFix f ('ArraySort i e)
+store a i v = inject (Store sing sing a i v)
