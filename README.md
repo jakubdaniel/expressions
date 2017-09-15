@@ -69,6 +69,19 @@
     λ> prenex (forall [var "a" :: Var 'IntegralSort] (var "b" .&. not (exists [var "c" :: Var 'BooleanSort] (var "c" .->. var "d")) .&. forall [var "d" :: Var 'IntegralSort] (var "d" .+. var "a" ./=. cnst 3)) :: Lia 'BooleanSort)
     (forall ((f2 : int) (f1 : int)) (forall ((f0 : bool)) (and (b : bool) (and (f0 : bool) (not (d : bool))) (not (= (+ (f1 : int) (f2 : int)) 3)))))
 
+## flat form
+
+    λ> flatten (select (var "a") (var "i" .+. cnst 1) .=. cnst 3 :: ALia 'BooleanSort)
+    (exists ((k0 : int)) (and (= (k0 : int) (+ 1 (i : int))) (= (select (a : array int int) (k0 : int)) 3)))
+
+    λ> type L = IFix (UniversalF ('ArraySort 'IntegralSort 'IntegralSort) :+: ALiaF)
+    λ> flatten (select (store (var "a") (var "i") (cnst 3)) (cnst 4) .=. var "b" :: L 'BooleanSort)
+    (forall ((k0 : array int int)) (or (not (= (k0 : array int int) (store (a : array int int) (i : int) 3))) (= (select (k0 : array int int) 4) (b : int))))
+
+    λ> type L = IFix (UniversalF ('ArraySort 'IntegralSort 'IntegralSort) :+: ExistentialF ('ArraySort 'IntegralSort 'IntegralSort) :+: ALiaF)
+    λ> flatten (select (store (var "a") (var "i") (cnst 3)) (cnst 4) .=. var "b" :: L 'BooleanSort)
+    (exists ((k0 : array int int)) (and (= (k0 : array int int) (store (a : array int int) (i : int) 3)) (= (select (k0 : array int int) 4) (b : int))))
+
 ---
 
 See [documentation](https://jakubdaniel.github.io/expressions/).

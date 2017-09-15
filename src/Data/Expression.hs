@@ -111,15 +111,19 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        , nnf
 
                        , Prenex
-                       , prenex ) where
+                       , prenex
+
+                       , Flatten
+                       , flatten ) where
 
 import Algebra.Lattice
-import Control.Applicative
+import Control.Applicative hiding (Const)
+import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Data.List hiding (and, or, union)
-import Data.Map hiding (map, drop, foldr)
+import Data.Map hiding (map, drop, foldr, mapMaybe, partition)
 import Data.Maybe
 import Data.Monoid
 import Data.Singletons
@@ -428,23 +432,23 @@ disjuncts  e = fromMaybe [e] (disjuncts' e)
 
 -- | A smart constructor for binary conjunction
 (.&.) :: ConjunctionF :<: f => IFix f 'BooleanSort -> IFix f 'BooleanSort -> IFix f 'BooleanSort
-a .&. b = merge (flatten a ++ flatten b) where
+a .&. b = merge (flatten'' a ++ flatten'' b) where
     merge []  = true
     merge [f] = f
     merge as  = inject $ And as
 
-    flatten e = case match e of
+    flatten'' e = case match e of
         Just (And as) -> as
         _ -> [e]
 
 -- | A smart constructor for binary disjunction
 (.|.) :: DisjunctionF :<: f => IFix f 'BooleanSort -> IFix f 'BooleanSort -> IFix f 'BooleanSort
-a .|. b = merge (flatten a ++ flatten b) where
+a .|. b = merge (flatten'' a ++ flatten'' b) where
     merge []  = false
     merge [f] = f
     merge os  = inject $ Or os
 
-    flatten e = case match e of
+    flatten'' e = case match e of
         Just (Or os) -> os
         _ -> [e]
 
@@ -722,3 +726,128 @@ instance ( VarF :<: f, NegationF :<: f, IFunctor f, IFoldable f, ITraversable f,
 -- | Puts an expression into prenex form (quantifier prefix and a quantifier-free formula).
 prenex :: forall f. Prenex f => IFix f 'BooleanSort -> IFix f 'BooleanSort
 prenex f = let (a, (_, q)) = runState (imapM (pushQuantifier . unIFix) (nnf f)) (freenames f, id) in q a
+
+class Bind f g where
+    bind :: Proxy f -> IFix g s -> Maybe (Bool, State ([String], [([DynamicallySorted VarF], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s))
+
+instance forall g v. ( VarF :<: g, EqualityF :<: g, NegationF :<: g, DisjunctionF :<: g, UniversalF v :<: g, MaybeQuantified g, SingI v ) => Bind (UniversalF v) g where
+    bind _ a = case index (unIFix a) %~ (sing :: Sing v) of
+        Proved Refl -> Just . (\s -> (False, s)) $ do
+            (n : ns, q) <- get
+
+            let x :: forall f. VarF :<: f => IFix f v
+                x = var n
+
+            put (ns, (freevars a, forall [x] . (x .=. a .->.)) : q)
+            return x
+        Disproved _ -> Nothing
+
+instance forall g v. ( VarF :<: g, EqualityF :<: g, ConjunctionF :<: g, ExistentialF v :<: g, MaybeQuantified g, SingI v ) => Bind (ExistentialF v) g where
+    bind _ a = case index (unIFix a) %~ (sing :: Sing v) of
+        Proved Refl -> Just . (\s -> (True, s)) $ do
+            (n : ns, q) <- get
+
+            let x :: forall f. VarF :<: f => IFix f v
+                x = var n
+
+            put (ns, (freevars a, exists [x] . (x .=. a .&.)) : q)
+            return x
+        Disproved _ -> Nothing
+
+instance ( Bind f h, Bind g h ) => Bind (f :+: g) h where
+    bind _ a = let ls = bind (Proxy :: Proxy f) a
+                   rs = bind (Proxy :: Proxy g) a in merge ls rs where
+
+        merge Nothing m = m
+        merge m Nothing = m
+
+        merge m@(Just (True, _)) _ = m
+        merge _ m@(Just (True, _)) = m
+
+        merge m _ = m
+
+instance {-# OVERLAPPABLE #-} Bind f g where
+    bind _ _ = Nothing
+
+class Bind' f g where
+    bind' :: Bind g g => f (IFix g) s -> Maybe (Bool, State ([String], [([DynamicallySorted VarF], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s))
+
+instance VarF :<: g => Bind' VarF g where
+    bind' v = Just (True, return . inject $ v)
+
+instance ArithmeticF :<: g => Bind' ArithmeticF g where
+    bind' c@Const {} = Just (True, return . inject $ c)
+    bind' a = bind (Proxy :: Proxy g) (inject a)
+
+instance ConjunctionF :<: g => Bind' ConjunctionF g where
+    bind' a@(And []) = Just (True, return . inject $ a)
+    bind' a = bind (Proxy :: Proxy g) (inject a)
+
+instance DisjunctionF :<: g => Bind' DisjunctionF g where
+    bind' a@(Or []) = Just (True, return . inject $ a)
+    bind' a = bind (Proxy :: Proxy g) (inject a)
+
+instance ( Bind' f h, Bind' g h ) => Bind' (f :+: g) h where
+    bind' (InL fa) = bind' fa
+    bind' (InR gb) = bind' gb
+
+instance {-# OVERLAPPABLE #-} f :<: g => Bind' f g where
+    bind' a = bind (Proxy :: Proxy g) (inject a)
+
+bind'' :: forall f (s :: Sort). ( Bind f f, Bind' f f ) => IFix f s -> State ([String], [([DynamicallySorted VarF], IFix f 'BooleanSort -> IFix f 'BooleanSort)]) (IFix f s)
+bind'' a = fromMaybe (return a) . fmap snd . bind' . unIFix $ a
+
+class MaybeQuantified'' f g where
+    flatten' :: ( Bind g g, Bind' g g ) => f (IFix g) s -> State ([String], [([DynamicallySorted VarF], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s)
+
+instance ArrayF :<: g => MaybeQuantified'' ArrayF g where
+    flatten' (Select is es a i) = do
+        a' <- bind'' a
+        i' <- bind'' i
+        return . inject $ Select is es a' i'
+    flatten' (Store is es a i e) = do
+        a' <- bind'' a
+        i' <- bind'' i
+        e' <- bind'' e
+        return . inject $ Store is es a' i' e'
+
+instance ( UniversalF v :<: g, SingI v ) => MaybeQuantified'' (UniversalF v) g where
+    flatten' (Forall vs a) = do
+        (ns, qs) <- get
+
+        let (d, i) = partition (\(vs', _) -> any (`elem` mapMaybe toStaticallySorted vs') vs) qs
+
+        put (ns, i)
+
+        return $ forall vs (foldr snd a d)
+
+instance ( ExistentialF v :<: g, SingI v ) => MaybeQuantified'' (ExistentialF v) g where
+    flatten' (Exists vs a) = do
+        (ns, qs) <- get
+
+        let (d, i) = partition (\(vs', _) -> any (`elem` mapMaybe toStaticallySorted vs') vs) qs
+
+        put (ns, i)
+
+        return $ exists vs (foldr snd a d)
+
+instance ( MaybeQuantified'' f h, MaybeQuantified'' g h ) => MaybeQuantified'' (f :+: g) h where
+    flatten' (InL fa) = flatten' fa
+    flatten' (InR gb) = flatten' gb
+
+instance {-# OVERLAPPABLE #-} f :<: g => MaybeQuantified'' f g where
+    flatten' = return . inject
+
+class    ( VarF :<: f, Bind f f, Bind' f f, MaybeQuantified'' f f, IFoldable f, ITraversable f ) => Flatten f
+instance ( VarF :<: f, Bind f f, Bind' f f, MaybeQuantified'' f f, IFoldable f, ITraversable f ) => Flatten f
+
+-- | Replaces non-variable and non-constant arguments to uninterpreted functions (such as `select` and `store`) with a fresh bound (universally or existentially) variable that is bound to the original term.
+flatten :: forall f. Flatten f => IFix f 'BooleanSort -> IFix f 'BooleanSort
+flatten f = let (a, (_, qs)) = runState (imapM flatten'' f) (freenames f, []) in foldr snd a qs where
+    flatten'' f' = do
+        (ns, q) <- get
+        put (ns, [])
+        r <- flatten' (unIFix f')
+        (ns', q') <- get
+        put (ns', q ++ q')
+        return r
