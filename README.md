@@ -43,6 +43,14 @@
     λ> (var "a" .+. (var "a" .+. cnst 3) :: ALia 'IntegralSort) `substitute` (cnst 3 `for` (var "a" .+. cnst 3))
     (+ (a : int) 3)
 
+## listing variables
+
+    λ> vars (forall [var "a" :: Var 'IntegralSort] (exists [var "b" :: Var 'IntegralSort] (var "a" .+. var "b" .=. var "c" .+. var "d")) :: Lia 'BooleanSort)
+    [(a : int),(b : int),(c : int),(d : int)]
+
+    λ> freevars (forall [var "a" :: Var 'IntegralSort] (exists [var "b" :: Var 'IntegralSort] (var "a" .+. var "b" .=. var "c" .+. var "d")) :: Lia 'BooleanSort)
+    [(c : int),(d : int)]
+
 ---
 
 See [documentation](https://jakubdaniel.github.io/expressions/).

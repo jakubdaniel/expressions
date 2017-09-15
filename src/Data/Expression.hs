@@ -96,7 +96,9 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        -- Convenient destructors
                        , literals
                        , conjuncts
-                       , disjuncts ) where
+                       , disjuncts
+                       , vars
+                       , freevars ) where
 
 import Algebra.Lattice
 import Control.Applicative
@@ -124,6 +126,7 @@ import Data.Expression.Utils.Indexed.Sum
 import Data.Expression.Utils.Indexed.Traversable
 
 import qualified Data.Functor.Const as F
+import qualified Prelude as P
 
 -- | A functor representing propositional logic embedded in first order logic (quantifier-free, boolean variables aka propositions, logical connectives `and`, `or`, `not`, equality of propositions)
 type QFLogicF = EqualityF :+: ConjunctionF :+: DisjunctionF :+: NegationF :+: VarF
@@ -261,6 +264,13 @@ instance VarF :<: f => Parseable VarF f where
 -- @
 var :: forall f s. ( VarF :<: f, SingI s ) => VariableName -> IFix f s
 var n = inject (Var n (sing :: Sing s))
+
+-- | Collects a list of all variables occurring in an expression (bound or free).
+vars :: ( VarF :<: f, IFoldable f, IFunctor f ) => IFix f s -> [DynamicallySorted VarF]
+vars = nub . F.getConst . icata vars' where
+    vars' a = case prj a of
+        Just (Var n s) -> F.Const [DynamicallySorted s . inject $ Var n s]
+        Nothing -> ifold a
 
 -- | Substitution that given an expression produces replacement if the expression is to be replaced or nothing otherwise.
 newtype Substitution f = Substitution { runSubstitution :: forall (s :: Sort). IFix f s -> Maybe (IFix f s) }
@@ -560,6 +570,29 @@ instance ( ExistentialF v :<: f, SingI v ) => Parseable (ExistentialF v) f where
         context (DynamicallySorted s v) = case match v of
             Just (Var n _) -> (n, DynamicSort s)
             _              -> error "impossible error"
+
+class MaybeQuantified f where
+    freevars' :: f (F.Const [DynamicallySorted VarF]) s -> F.Const [DynamicallySorted VarF] s
+
+instance MaybeQuantified VarF where
+    freevars' (Var n s) = F.Const [DynamicallySorted s . inject $ Var n s]
+
+instance MaybeQuantified (UniversalF v) where
+    freevars' (Forall vs a) = F.Const . P.filter (`notElem` map (\v@(IFix (Var _ s)) -> DynamicallySorted s v) vs) . F.getConst $ a
+
+instance MaybeQuantified (ExistentialF v) where
+    freevars' (Exists vs a) = F.Const . P.filter (`notElem` map (\v@(IFix (Var _ s)) -> DynamicallySorted s v) vs) . F.getConst $ a
+
+instance ( MaybeQuantified f, MaybeQuantified g ) => MaybeQuantified (f :+: g) where
+    freevars' (InL fa) = freevars' fa
+    freevars' (InR fb) = freevars' fb
+
+instance {-# OVERLAPPABLE #-} ( IFunctor f, IFoldable f ) => MaybeQuantified f where
+    freevars' = ifold
+
+-- | Collects a list of all free variables occurring in an expression.
+freevars :: ( IFunctor f, MaybeQuantified f ) => IFix f s -> [DynamicallySorted VarF]
+freevars = nub . F.getConst . icata freevars'
 
 -- | A smart constructor for universally quantified formulae
 forall :: UniversalF v :<: f => [Var v] -> IFix f 'BooleanSort -> IFix f 'BooleanSort
