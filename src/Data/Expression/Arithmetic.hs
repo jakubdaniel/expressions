@@ -40,6 +40,7 @@ import Data.Expression.Utils.Indexed.Foldable
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
+import Data.Expression.Utils.Indexed.Traversable
 
 import qualified Data.Functor.Const as F
 
@@ -80,6 +81,13 @@ instance IFoldable ArithmeticF where
     ifold (Mul ms)  = F.Const . mconcat . map F.getConst $ ms
     ifold (_ `Divides` a)  = F.Const . F.getConst $ a
     ifold (a `LessThan` b) = F.Const (F.getConst a) <> F.Const (F.getConst b)
+
+instance ITraversable ArithmeticF where
+    itraverse _ (Const c) = pure (Const c)
+    itraverse f (Add as)  = Add <$> traverse f as
+    itraverse f (Mul ms)  = Mul <$> traverse f ms
+    itraverse f (c `Divides` a)  = Divides c <$> f a
+    itraverse f (a `LessThan` b) = LessThan <$> f a <*> f b
 
 instance IShow ArithmeticF where
     ishow (Const c)        = F.Const $ show c

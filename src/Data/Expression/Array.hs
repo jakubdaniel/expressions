@@ -33,6 +33,7 @@ import Data.Expression.Utils.Indexed.Foldable
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
+import Data.Expression.Utils.Indexed.Traversable
 
 -- | A functor representing array-theoretic terms (`select` and `store` also known as "read" and "write")
 data ArrayF a (s :: Sort) where
@@ -56,6 +57,10 @@ instance IFunctor ArrayF where
 instance IFoldable ArrayF where
     ifold (Select _ _ a i)   = Const (getConst a) <> Const (getConst i)
     ifold (Store  _ _ a i e) = Const (getConst a) <> Const (getConst i) <> Const (getConst e)
+
+instance ITraversable ArrayF where
+    itraverse f (Select is es a i)   = Select is es <$> f a <*> f i
+    itraverse f (Store  is es a i e) = Store  is es <$> f a <*> f i <*> f e
 
 instance IShow ArrayF where
     ishow (Select _ _ a i)   = Const $ "(select " ++ getConst a ++ " " ++ getConst i ++ ")"

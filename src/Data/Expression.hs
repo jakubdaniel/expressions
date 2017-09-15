@@ -37,6 +37,7 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        , module Data.Expression.Utils.Indexed.Functor
                        , module Data.Expression.Utils.Indexed.Show
                        , module Data.Expression.Utils.Indexed.Sum
+                       , module Data.Expression.Utils.Indexed.Traversable
 
                        -- Functors representing usual combinations of languages
                        , QFLogicF
@@ -120,6 +121,7 @@ import Data.Expression.Utils.Indexed.Foldable
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
+import Data.Expression.Utils.Indexed.Traversable
 
 import qualified Data.Functor.Const as F
 
@@ -222,6 +224,9 @@ instance IFunctor VarF where
 instance IFoldable VarF where
     ifold _ = F.Const mempty
 
+instance ITraversable VarF where
+    itraverse _ (Var n s) = pure (Var n s)
+
 instance IShow VarF where
     ishow (Var n s) = F.Const ("(" ++ n ++ " : " ++ show s ++ ")")
 
@@ -317,6 +322,15 @@ instance IFoldable DisjunctionF where
 
 instance IFoldable NegationF where
     ifold (Not n) = n
+
+instance ITraversable ConjunctionF where
+    itraverse f (And as) = And <$> traverse f as
+
+instance ITraversable DisjunctionF where
+    itraverse f (Or os) = Or <$> traverse f os
+
+instance ITraversable NegationF where
+    itraverse f (Not n) = Not <$> f n
 
 instance IShow ConjunctionF where
     ishow (And []) = F.Const $ "true"
@@ -486,6 +500,12 @@ instance IFoldable (UniversalF v) where
 
 instance IFoldable (ExistentialF v) where
     ifold (Exists _ b) = b
+
+instance ITraversable (UniversalF v) where
+    itraverse f (Forall vs b) = Forall vs <$> f b
+
+instance ITraversable (ExistentialF v) where
+    itraverse f (Exists vs b) = Exists vs <$> f b
 
 instance IShow (UniversalF v) where
     ishow (Forall vs phi) = F.Const $ "(forall (" ++ intercalate " " (map show vs) ++ ") " ++ F.getConst phi ++ ")"

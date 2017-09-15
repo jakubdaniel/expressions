@@ -22,5 +22,6 @@
 !src/Data/Expression/Utils/Indexed/Functor.hs
 !src/Data/Expression/Utils/Indexed/Show.hs
 !src/Data/Expression/Utils/Indexed/Sum.hs
+!src/Data/Expression/Utils/Indexed/Traversable.hs
 !test/
 !test/Main.hs

@@ -32,6 +32,7 @@ import Data.Expression.Utils.Indexed.Foldable
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
+import Data.Expression.Utils.Indexed.Traversable
 
 -- | A functor representing an equality predicate between two expressions of matching sort
 data EqualityF a (s :: Sort) where
@@ -48,6 +49,9 @@ instance IFunctor EqualityF where
 
 instance IFoldable EqualityF where
     ifold (Equals _ a b) = Const (getConst a) <> Const (getConst b)
+
+instance ITraversable EqualityF where
+    itraverse f (Equals s a b) = Equals s <$> f a <*> f b
 
 instance IShow EqualityF where
     ishow (Equals _ a b) = Const $ "(= " ++ getConst a ++ " " ++ getConst b ++ ")"

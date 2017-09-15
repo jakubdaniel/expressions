@@ -32,6 +32,7 @@ import Data.Expression.Utils.Indexed.Foldable
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
+import Data.Expression.Utils.Indexed.Traversable
 
 -- | A functor representing a conditional value (if-then-else)
 data IfThenElseF a (s :: Sort) where
@@ -48,6 +49,9 @@ instance IFunctor IfThenElseF where
 
 instance IFoldable IfThenElseF where
     ifold (IfThenElse _ i t e) = Const $ getConst i <> getConst t <> getConst e
+
+instance ITraversable IfThenElseF where
+    itraverse f (IfThenElse s i t e) = IfThenElse s <$> f i <*> f t <*> f e
 
 instance IShow IfThenElseF where
     ishow (IfThenElse _ i t e) = Const $ "(ite " ++ getConst i ++ " " ++ getConst t ++ " " ++ getConst e ++ ")"

@@ -54,6 +54,7 @@ library
                        Data.Expression.Utils.Indexed.Functor,
                        Data.Expression.Utils.Indexed.Show,
                        Data.Expression.Utils.Indexed.Sum
+                       Data.Expression.Utils.Indexed.Traversable
   other-extensions:    DataKinds,
                        FlexibleContexts,
                        FlexibleInstances,

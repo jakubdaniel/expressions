@@ -19,6 +19,7 @@ import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Foldable
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
+import Data.Expression.Utils.Indexed.Traversable
 
 -- | Sum of two indexed functors
 data (f :+: g) a i = InL (f a i) | InR (g a i)
@@ -65,6 +66,10 @@ instance (IEq1 f, IEq1 g) => IEq1 (f :+: g) where
 instance (IFoldable f, IFoldable g) => IFoldable (f :+: g) where
     ifold (InL fa) = ifold fa
     ifold (InR gb) = ifold gb
+
+instance (ITraversable f, ITraversable g) => ITraversable (f :+: g) where
+    itraverse f (InL fa) = InL <$> itraverse f fa
+    itraverse f (InR gb) = InR <$> itraverse f gb
 
 instance (IShow f, IShow g) => IShow (f :+: g) where
     ishow (InL fa) = ishow fa
