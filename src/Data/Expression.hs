@@ -108,14 +108,18 @@ module Data.Expression ( module Data.Expression.Arithmetic
 
                        -- Special forms
                        , NNF
-                       , nnf ) where
+                       , nnf
+
+                       , Prenex
+                       , prenex ) where
 
 import Algebra.Lattice
 import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
+import Control.Monad.Trans.State
 import Data.List hiding (and, or, union)
-import Data.Map hiding (map, foldr)
+import Data.Map hiding (map, drop, foldr)
 import Data.Maybe
 import Data.Monoid
 import Data.Singletons
@@ -672,3 +676,49 @@ nnf = nnf' where
 
     not' :: NegationF (IFix f) 'BooleanSort -> Maybe (IFix f 'BooleanSort)
     not' (Not a) = return . dual . unIFix $ a
+
+freename :: forall f (s :: Sort). ( VarF :<: f, IFunctor f, IFoldable f ) => IFix f s -> String
+freename a = head $ dropWhile (\s -> any (>= s) ns) pool where
+    fs = vars a
+    ns = sort $ map (\(DynamicallySorted _ (IFix (Var n _))) -> takeWhile (`elem` ['a'..'z']) n) fs
+
+    pool = [ [x] | x <- ['a'..'z'] ] ++ [ x ++ [y] | x <- pool, y <- ['a'..'z'] ]
+
+freenames :: forall f (s :: Sort). ( VarF :<: f, IFunctor f, IFoldable f ) => IFix f s -> [String]
+freenames a = map (\n -> freename a ++ show n) ([0..] :: [Int])
+
+pushQuantifier' :: ( VarF :<: f, IEq1 f ) => ([Var v] -> IFix f 'BooleanSort -> IFix f 'BooleanSort) -> [Var v] -> IFix f 'BooleanSort -> State ([String], IFix f 'BooleanSort -> IFix f 'BooleanSort) (IFix f 'BooleanSort)
+pushQuantifier' c vs a = do
+    (ns, q) <- get
+
+    let vs' = zipWith (\(IFix (Var _ s)) n' -> IFix (Var n' s)) vs ns
+        ns' = drop (length vs) ns
+        q'  = c vs' . q
+        sub = mconcat $ zipWith (\(IFix (Var n s)) n' -> inject (Var n' s) `for` inject (Var n s)) vs ns
+
+    put (ns', q')
+
+    return $ a `substitute` sub
+
+class MaybeQuantified f => MaybeQuantified' f g where
+    pushQuantifier :: f (IFix g) s -> State ([String], IFix g 'BooleanSort -> IFix g 'BooleanSort) (IFix g s)
+
+instance ( VarF :<: g, UniversalF v :<: g, IEq1 g ) => MaybeQuantified' (UniversalF v) g where
+    pushQuantifier (Forall vs a) = pushQuantifier' forall vs a
+
+instance ( VarF :<: g, ExistentialF v :<: g, IEq1 g ) => MaybeQuantified' (ExistentialF v) g where
+    pushQuantifier (Exists vs a) = pushQuantifier' exists vs a
+
+instance ( MaybeQuantified' f h, MaybeQuantified' g h ) => MaybeQuantified' (f :+: g) h where
+    pushQuantifier (InL fa) = pushQuantifier fa
+    pushQuantifier (InR gb) = pushQuantifier gb
+
+instance {-# OVERLAPPABLE #-} ( f :<: g, IFoldable f ) => MaybeQuantified' f g where
+    pushQuantifier = return . inject
+
+class    ( VarF :<: f, NegationF :<: f, IFunctor f, IFoldable f, ITraversable f, HasDual f f, MaybeQuantified' f f ) => Prenex f
+instance ( VarF :<: f, NegationF :<: f, IFunctor f, IFoldable f, ITraversable f, HasDual f f, MaybeQuantified' f f ) => Prenex f
+
+-- | Puts an expression into prenex form (quantifier prefix and a quantifier-free formula).
+prenex :: forall f. Prenex f => IFix f 'BooleanSort -> IFix f 'BooleanSort
+prenex f = let (a, (_, q)) = runState (imapM (pushQuantifier . unIFix) (nnf f)) (freenames f, id) in q a

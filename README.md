@@ -64,6 +64,11 @@
     λ> nnf (not (var "z" .&. (exists [var "b" :: Var 'IntegralSort] (var "a" .+. var "b" .=. var "c" .+. var "d")) :: Lia 'BooleanSort))
     (or (not (z : bool)) (forall ((b : int)) (not (= (+ (a : int) (b : int)) (+ (c : int) (d : int))))))
 
+## prenex form
+
+    λ> prenex (forall [var "a" :: Var 'IntegralSort] (var "b" .&. not (exists [var "c" :: Var 'BooleanSort] (var "c" .->. var "d")) .&. forall [var "d" :: Var 'IntegralSort] (var "d" .+. var "a" ./=. cnst 3)) :: Lia 'BooleanSort)
+    (forall ((f2 : int) (f1 : int)) (forall ((f0 : bool)) (and (b : bool) (and (f0 : bool) (not (d : bool))) (not (= (+ (f1 : int) (f2 : int)) 3)))))
+
 ---
 
 See [documentation](https://jakubdaniel.github.io/expressions/).
