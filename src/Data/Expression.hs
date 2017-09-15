@@ -98,7 +98,12 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        , conjuncts
                        , disjuncts
                        , vars
-                       , freevars ) where
+                       , freevars
+
+                       -- Predicates
+                       , MaybeQuantified
+                       , isQuantified
+                       , isQuantifierFree ) where
 
 import Algebra.Lattice
 import Control.Applicative
@@ -572,23 +577,38 @@ instance ( ExistentialF v :<: f, SingI v ) => Parseable (ExistentialF v) f where
             _              -> error "impossible error"
 
 class MaybeQuantified f where
+    isQuantified' :: MaybeQuantified g => f (IFix g) s -> F.Const Any s
     freevars' :: f (F.Const [DynamicallySorted VarF]) s -> F.Const [DynamicallySorted VarF] s
 
 instance MaybeQuantified VarF where
+    isQuantified' _ = F.Const (Any False)
     freevars' (Var n s) = F.Const [DynamicallySorted s . inject $ Var n s]
 
 instance MaybeQuantified (UniversalF v) where
+    isQuantified' _ = F.Const (Any True)
     freevars' (Forall vs a) = F.Const . P.filter (`notElem` map (\v@(IFix (Var _ s)) -> DynamicallySorted s v) vs) . F.getConst $ a
 
 instance MaybeQuantified (ExistentialF v) where
+    isQuantified' _ = F.Const (Any True)
     freevars' (Exists vs a) = F.Const . P.filter (`notElem` map (\v@(IFix (Var _ s)) -> DynamicallySorted s v) vs) . F.getConst $ a
 
 instance ( MaybeQuantified f, MaybeQuantified g ) => MaybeQuantified (f :+: g) where
+    isQuantified' (InL fa) = isQuantified' fa
+    isQuantified' (InR gb) = isQuantified' gb
     freevars' (InL fa) = freevars' fa
     freevars' (InR fb) = freevars' fb
 
 instance {-# OVERLAPPABLE #-} ( IFunctor f, IFoldable f ) => MaybeQuantified f where
+    isQuantified' = ifold . imap (isQuantified' . unIFix)
     freevars' = ifold
+
+-- | Test whether an expression contains a quantifier.
+isQuantified :: MaybeQuantified f => IFix f s -> Bool
+isQuantified = getAny . F.getConst . isQuantified' . unIFix
+
+-- | Tests whether an expression is free of any quantifier.
+isQuantifierFree :: MaybeQuantified f => IFix f s -> Bool
+isQuantifierFree = P.not . isQuantified
 
 -- | Collects a list of all free variables occurring in an expression.
 freevars :: ( IFunctor f, MaybeQuantified f ) => IFix f s -> [DynamicallySorted VarF]

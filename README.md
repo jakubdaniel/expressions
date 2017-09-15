@@ -51,6 +51,14 @@
     λ> freevars (forall [var "a" :: Var 'IntegralSort] (exists [var "b" :: Var 'IntegralSort] (var "a" .+. var "b" .=. var "c" .+. var "d")) :: Lia 'BooleanSort)
     [(c : int),(d : int)]
 
+## distinguish quantifier-free from quantified formulae
+
+    λ> isQuantified (var "z" .&. (exists [var "b" :: Var 'IntegralSort] (var "a" .+. var "b" .=. var "c" .+. var "d")) :: Lia 'BooleanSort)
+    True
+
+    λ> isQuantifierFree (var "z" .&. var "a" .+. var "b" .=. var "c" .+. var "d" :: Lia 'BooleanSort)
+    True
+
 ---
 
 See [documentation](https://jakubdaniel.github.io/expressions/).
