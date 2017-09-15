@@ -35,6 +35,7 @@ import Data.Monoid
 
 import Data.Expression.Parser
 import Data.Expression.Sort
+import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
@@ -48,6 +49,16 @@ data ArithmeticF a (s :: Sort) where
     Mul      :: [a 'IntegralSort] -> ArithmeticF a 'IntegralSort
     Divides  :: Int -> a 'IntegralSort -> ArithmeticF a 'BooleanSort
     LessThan :: a 'IntegralSort -> a 'IntegralSort -> ArithmeticF a 'BooleanSort
+
+instance IEq1 ArithmeticF where
+    Const a  `ieq1` Const b  = a == b
+    Add   as `ieq1` Add   bs = foldr (&&) True $ zipWith ieq as bs
+    Mul   as `ieq1` Mul   bs = foldr (&&) True $ zipWith ieq as bs
+
+    Divides  c a `ieq1` Divides  d b = a `ieq` b && c == d
+    LessThan a c `ieq1` LessThan b d = a `ieq` b && c `ieq` d
+
+    _ `ieq1` _ = False
 
 instance IFunctor ArithmeticF where
     imap _ (Const c)        = Const c

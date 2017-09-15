@@ -32,6 +32,7 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        , module Data.Expression.IfThenElse
                        , module Data.Expression.Parser
                        , module Data.Expression.Sort
+                       , module Data.Expression.Utils.Indexed.Eq
                        , module Data.Expression.Utils.Indexed.Functor
                        , module Data.Expression.Utils.Indexed.Show
                        , module Data.Expression.Utils.Indexed.Sum
@@ -106,6 +107,7 @@ import Data.Expression.Equality
 import Data.Expression.IfThenElse
 import Data.Expression.Parser
 import Data.Expression.Sort
+import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
@@ -201,6 +203,9 @@ type VariableName = String
 data VarF a (s :: Sort) where
     Var :: VariableName -> Sing s -> VarF a s
 
+instance IEq1 VarF where
+    Var na _ `ieq1` Var nb _ = na == nb
+
 instance IFunctor VarF where
     imap _ (Var n s) = Var n s
 
@@ -250,6 +255,15 @@ data DisjunctionF a (s :: Sort) where
 -- | A functor representing a logical connective for negation
 data NegationF a (s :: Sort) where
     Not ::  a 'BooleanSort  -> NegationF a 'BooleanSort
+
+instance IEq1 ConjunctionF where
+    And as `ieq1` And bs = foldr (&&) True $ zipWith ieq as bs
+
+instance IEq1 DisjunctionF where
+    Or  as `ieq1` Or  bs = foldr (&&) True $ zipWith ieq as bs
+
+instance IEq1 NegationF where
+    Not a  `ieq1` Not b  = a `ieq` b
 
 instance IFunctor ConjunctionF where
     imap f (And as) = And $ map f as
@@ -408,6 +422,12 @@ data UniversalF (v :: Sort) a (s :: Sort) where
 -- | A functor representing a mono-sorted existential quantifier binding a number of variables within a formula
 data ExistentialF (v :: Sort) a (s :: Sort) where
     Exists :: [Var v] -> a 'BooleanSort -> ExistentialF v a 'BooleanSort
+
+instance IEq1 (UniversalF v) where
+    Forall as phi `ieq1` Forall bs psi = (foldr (&&) True $ zipWith ieq as bs) && phi `ieq` psi
+
+instance IEq1 (ExistentialF v) where
+    Exists as phi `ieq1` Exists bs psi = (foldr (&&) True $ zipWith ieq as bs) && phi `ieq` psi
 
 instance IFunctor (UniversalF v) where
     imap f (Forall vs phi) = Forall vs $ f phi

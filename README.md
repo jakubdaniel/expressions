@@ -6,6 +6,7 @@
 
     λ> :set -XDataKinds -XTypeOperators -XOverloadedStrings
     λ> import Data.Expression
+    λ> import Data.Maybe
 
 ## defining expressions
 
@@ -25,6 +26,17 @@
 
     λ> parse "(and (forall ((x : int) (y : int)) (< x (+ y (z : int)))) (= z 3))" :: Maybe (Lia 'BooleanSort)
     Just (and (forall ((x : int) (y : int)) (< (x : int) (+ (y : int) (z : int)))) (= (z : int) 3))
+
+## equating expressions
+
+    λ> var "a" == (fromJust $ parse "(a : int)" :: ALia 'IntegralSort)
+    True
+
+    λ> var "a" == (fromJust $ parse "(+ (a : int) 3)" :: ALia 'IntegralSort)
+    False
+
+    λ> var "a" .+. cnst 1 == (fromJust $ parse "(+ (a : int) 1)" :: ALia 'IntegralSort)
+    True
 
 ---
 

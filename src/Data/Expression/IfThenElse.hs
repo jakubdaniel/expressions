@@ -26,6 +26,7 @@ import Data.Singletons.Decide
 
 import Data.Expression.Parser
 import Data.Expression.Sort
+import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
@@ -33,6 +34,11 @@ import Data.Expression.Utils.Indexed.Sum
 -- | A functor representing a conditional value (if-then-else)
 data IfThenElseF a (s :: Sort) where
     IfThenElse :: Sing s -> a 'BooleanSort -> a s -> a s -> IfThenElseF a s
+
+instance IEq1 IfThenElseF where
+    IfThenElse sa ia ta ea `ieq1` IfThenElse sb ib tb eb = ia `ieq` ib && case sa %~ sb of
+        Proved Refl -> ta `ieq` tb && ea `ieq` eb
+        Disproved _ -> False
 
 instance IFunctor IfThenElseF where
     imap f (IfThenElse s i t e) = IfThenElse s (f i) (f t) (f e)

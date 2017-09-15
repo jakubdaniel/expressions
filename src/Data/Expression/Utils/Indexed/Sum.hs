@@ -15,6 +15,7 @@
 
 module Data.Expression.Utils.Indexed.Sum ((:+:)(..), (:<:)(..), inject, match) where
 
+import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 
@@ -51,6 +52,11 @@ inject = IFix . inj
 -- | Try to unpack a sum into a component.
 match :: g :<: f => forall i. IFix f i -> Maybe (g (IFix f) i)
 match = prj . unIFix
+
+instance (IEq1 f, IEq1 g) => IEq1 (f :+: g) where
+    InL a `ieq1` InL b = a `ieq1` b
+    InR a `ieq1` InR b = a `ieq1` b
+    _     `ieq1` _     = False
 
 instance (IShow f, IShow g) => IShow (f :+: g) where
     ishow (InL fa) = ishow fa

@@ -16,6 +16,7 @@ module Data.Expression.Utils.Indexed.Functor (IFix(..), IFunctor(..), icata) whe
 import Data.Functor.Const
 import Data.Kind
 
+import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Show
 
 -- | A fixpoint of a functor in indexed category
@@ -28,6 +29,12 @@ class IFunctor (f :: (i -> *) -> (i -> *)) where
 -- | Indexed catamorphism
 icata :: IFunctor f => (forall i. f a i -> a i) -> (forall i. IFix f i -> a i)
 icata f = f . imap (icata f) . unIFix
+
+instance IEq1 f => IEq (IFix f) where
+    IFix a `ieq` IFix b = a `ieq1` b
+
+instance IEq1 f => Eq (IFix f i) where
+    IFix a == IFix b = a `ieq1` b
 
 instance (IFunctor f, IShow f) => Show (IFix f i) where
     show = getConst . icata ishow

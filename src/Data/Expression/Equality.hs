@@ -26,6 +26,7 @@ import Data.Singletons.Decide
 
 import Data.Expression.Parser
 import Data.Expression.Sort
+import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
@@ -33,6 +34,11 @@ import Data.Expression.Utils.Indexed.Sum
 -- | A functor representing an equality predicate between two expressions of matching sort
 data EqualityF a (s :: Sort) where
     Equals :: Sing s -> a s -> a s -> EqualityF a 'BooleanSort
+
+instance IEq1 EqualityF where
+    Equals sa aa ba `ieq1` Equals sb ab bb = case sa %~ sb of
+        Proved Refl -> aa `ieq` ab && ba `ieq` bb
+        Disproved _ -> False
 
 instance IFunctor EqualityF where
     imap f (Equals s a b) = Equals s (f a) (f b)

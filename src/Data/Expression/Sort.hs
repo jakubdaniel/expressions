@@ -36,6 +36,7 @@ import Data.Singletons
 import Data.Singletons.Decide
 import Data.Singletons.TH
 
+import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 
@@ -78,6 +79,11 @@ instance Eq DynamicSort where
 -- | An expression of some sort (obtained for example during parsing)
 data DynamicallySorted (f :: (Sort -> *) -> (Sort -> *)) where
   DynamicallySorted :: forall (s :: Sort) f. Sing s -> IFix f s -> DynamicallySorted f
+
+instance IEq1 f => Eq (DynamicallySorted f) where
+    DynamicallySorted sa a == DynamicallySorted sb b = case sa %~ sb of
+        Proved Refl -> a == b
+        Disproved _ -> False
 
 instance (IFunctor f, IShow f) => Show (DynamicallySorted f) where
     show (DynamicallySorted _ a) = show a

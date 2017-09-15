@@ -17,6 +17,9 @@
 !src/Data/Expression/Sort.hs
 !src/Data/Expression/Utils/
 !src/Data/Expression/Utils/Indexed/
+!src/Data/Expression/Utils/Indexed/Eq.hs
 !src/Data/Expression/Utils/Indexed/Functor.hs
 !src/Data/Expression/Utils/Indexed/Show.hs
 !src/Data/Expression/Utils/Indexed/Sum.hs
+!test/
+!test/Main.hs

@@ -27,6 +27,7 @@ import Data.Singletons.Decide
 
 import Data.Expression.Parser
 import Data.Expression.Sort
+import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
@@ -35,6 +36,13 @@ import Data.Expression.Utils.Indexed.Sum
 data ArrayF a (s :: Sort) where
     Select :: Sing i -> a ('ArraySort i e) -> a i        -> ArrayF a e
     Store  ::           a ('ArraySort i e) -> a i -> a e -> ArrayF a ('ArraySort i e)
+
+instance IEq1 ArrayF where
+    Select sa aa ia    `ieq1` Select sb ab ib    = case sa %~ sb of
+        Proved Refl -> aa `ieq` ab && ia `ieq` ib
+        Disproved _ -> False
+    Store     aa ia va `ieq1` Store     ab ib vb = aa `ieq` ab && ia `ieq` ib && va `ieq` vb
+    _                  `ieq1` _                  = False
 
 instance IFunctor ArrayF where
     imap f (Select s a i)   = Select s (f a) (f i)
