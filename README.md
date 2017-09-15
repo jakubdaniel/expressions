@@ -59,6 +59,11 @@
     λ> isQuantifierFree (var "z" .&. var "a" .+. var "b" .=. var "c" .+. var "d" :: Lia 'BooleanSort)
     True
 
+## negation normal form
+
+    λ> nnf (not (var "z" .&. (exists [var "b" :: Var 'IntegralSort] (var "a" .+. var "b" .=. var "c" .+. var "d")) :: Lia 'BooleanSort))
+    (or (not (z : bool)) (forall ((b : int)) (not (= (+ (a : int) (b : int)) (+ (c : int) (d : int))))))
+
 ---
 
 See [documentation](https://jakubdaniel.github.io/expressions/).

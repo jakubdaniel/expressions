@@ -7,7 +7,8 @@
            , RankNTypes
            , ScopedTypeVariables
            , TypeInType
-           , TypeOperators #-}
+           , TypeOperators
+           , UndecidableInstances #-}
 
 --------------------------------------------------------------------------------
 -- |
@@ -103,7 +104,11 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        -- Predicates
                        , MaybeQuantified
                        , isQuantified
-                       , isQuantifierFree ) where
+                       , isQuantifierFree
+
+                       -- Special forms
+                       , NNF
+                       , nnf ) where
 
 import Algebra.Lattice
 import Control.Applicative
@@ -209,11 +214,11 @@ instance BoundedLattice (  Lia   'BooleanSort)
 instance BoundedLattice (QFALia  'BooleanSort)
 instance BoundedLattice (  ALia  'BooleanSort)
 
-instance ComplementedLattice (QFLogic 'BooleanSort) where complement = not
-instance ComplementedLattice (QFLia   'BooleanSort) where complement = not
-instance ComplementedLattice (  Lia   'BooleanSort) where complement = not
-instance ComplementedLattice (QFALia  'BooleanSort) where complement = not
-instance ComplementedLattice (  ALia  'BooleanSort) where complement = not
+instance ComplementedLattice (QFLogic 'BooleanSort) where complement = nnf . not
+instance ComplementedLattice (QFLia   'BooleanSort) where complement = nnf . not
+instance ComplementedLattice (  Lia   'BooleanSort) where complement = nnf . not
+instance ComplementedLattice (QFALia  'BooleanSort) where complement = nnf . not
+instance ComplementedLattice (  ALia  'BooleanSort) where complement = nnf . not
 
 -- | Type of names assigned to variables
 type VariableName = String
@@ -627,3 +632,43 @@ exists [] f = f
 exists vs f = case match f of
     Just (Exists vs' f') -> exists (vs ++ vs') f'
     Nothing -> inject $ Exists vs f
+
+class HasDual f g where
+    dual :: f (IFix g) 'BooleanSort -> IFix g 'BooleanSort
+
+instance HasDual NegationF g where
+    dual (Not a) = a
+
+instance ( DisjunctionF :<: g, HasDual g g ) => HasDual ConjunctionF g where
+    dual (And as) = or (map (dual . unIFix) as)
+
+instance ( ConjunctionF :<: g, HasDual g g ) => HasDual DisjunctionF g where
+    dual (Or os) = and (map (dual . unIFix) os)
+
+instance ( ExistentialF v :<: g, HasDual g g ) => HasDual (UniversalF v) g where
+    dual (Forall vs a) = exists vs (dual . unIFix $ a)
+
+instance ( UniversalF v :<: g, HasDual g g ) => HasDual (ExistentialF v) g where
+    dual (Exists vs a) = forall vs (dual . unIFix $ a)
+
+instance ( HasDual f h, HasDual g h ) => HasDual (f :+: g) h where
+    dual (InL fa) = dual fa
+    dual (InR gb) = dual gb
+
+instance {-# OVERLAPPABLE #-} ( f :<: g, NegationF :<: g ) => HasDual f g where
+    dual = not . inject
+
+class    ( NegationF :<: f, HasDual f f ) => NNF f
+instance ( NegationF :<: f, HasDual f f ) => NNF f
+
+-- | Propagates negation toward boolean atoms (across conjunction, disjunction, quantifiers).
+nnf :: forall f. NNF f => IFix f 'BooleanSort -> IFix f 'BooleanSort
+nnf = nnf' where
+
+    nnf' :: IFix f s -> IFix f s
+    nnf' (IFix f) = case index f %~ SBooleanSort of
+        Proved Refl -> fromJust $ ( match (IFix f) >>= not' ) <|> Just (IFix (imap nnf' f))
+        Disproved _ -> IFix (imap nnf' f)
+
+    not' :: NegationF (IFix f) 'BooleanSort -> Maybe (IFix f 'BooleanSort)
+    not' (Not a) = return . dual . unIFix $ a
