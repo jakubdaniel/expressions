@@ -16,6 +16,7 @@
 module Data.Expression.Utils.Indexed.Sum ((:+:)(..), (:<:)(..), inject, match) where
 
 import Data.Expression.Utils.Indexed.Eq
+import Data.Expression.Utils.Indexed.Foldable
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 
@@ -60,6 +61,10 @@ instance (IEq1 f, IEq1 g) => IEq1 (f :+: g) where
     InL a `ieq1` InL b = a `ieq1` b
     InR a `ieq1` InR b = a `ieq1` b
     _     `ieq1` _     = False
+
+instance (IFoldable f, IFoldable g) => IFoldable (f :+: g) where
+    ifold (InL fa) = ifold fa
+    ifold (InR gb) = ifold gb
 
 instance (IShow f, IShow g) => IShow (f :+: g) where
     ishow (InL fa) = ishow fa

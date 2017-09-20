@@ -33,6 +33,7 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        , module Data.Expression.Parser
                        , module Data.Expression.Sort
                        , module Data.Expression.Utils.Indexed.Eq
+                       , module Data.Expression.Utils.Indexed.Foldable
                        , module Data.Expression.Utils.Indexed.Functor
                        , module Data.Expression.Utils.Indexed.Show
                        , module Data.Expression.Utils.Indexed.Sum
@@ -115,6 +116,7 @@ import Data.Expression.IfThenElse
 import Data.Expression.Parser
 import Data.Expression.Sort hiding (index)
 import Data.Expression.Utils.Indexed.Eq
+import Data.Expression.Utils.Indexed.Foldable
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
@@ -217,6 +219,9 @@ instance IFunctor VarF where
     imap _ (Var n s) = Var n s
     index (Var _ s)  = s
 
+instance IFoldable VarF where
+    ifold _ = F.Const mempty
+
 instance IShow VarF where
     ishow (Var n s) = F.Const ("(" ++ n ++ " : " ++ show s ++ ")")
 
@@ -303,6 +308,15 @@ instance IFunctor DisjunctionF where
 instance IFunctor NegationF where
     imap f (Not n)  = Not $ f n
     index Not {} = SBooleanSort
+
+instance IFoldable ConjunctionF where
+    ifold (And as) = F.Const . mconcat . map F.getConst $ as
+
+instance IFoldable DisjunctionF where
+    ifold (Or os) = F.Const . mconcat . map F.getConst $ os
+
+instance IFoldable NegationF where
+    ifold (Not n) = n
 
 instance IShow ConjunctionF where
     ishow (And []) = F.Const $ "true"
@@ -466,6 +480,12 @@ instance IFunctor (UniversalF v) where
 instance IFunctor (ExistentialF v) where
     imap f (Exists vs phi) = Exists vs $ f phi
     index Exists {} = SBooleanSort
+
+instance IFoldable (UniversalF v) where
+    ifold (Forall _ b) = b
+
+instance IFoldable (ExistentialF v) where
+    ifold (Exists _ b) = b
 
 instance IShow (UniversalF v) where
     ishow (Forall vs phi) = F.Const $ "(forall (" ++ intercalate " " (map show vs) ++ ") " ++ F.getConst phi ++ ")"

@@ -21,12 +21,14 @@ module Data.Expression.Equality ( EqualityF(..)
                                 , (.=.) ) where
 
 import Data.Functor.Const
+import Data.Monoid
 import Data.Singletons
 import Data.Singletons.Decide
 
 import Data.Expression.Parser
 import Data.Expression.Sort
 import Data.Expression.Utils.Indexed.Eq
+import Data.Expression.Utils.Indexed.Foldable
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
@@ -43,6 +45,9 @@ instance IEq1 EqualityF where
 instance IFunctor EqualityF where
     imap f (Equals s a b) = Equals s (f a) (f b)
     index (Equals _ _ _) = SBooleanSort
+
+instance IFoldable EqualityF where
+    ifold (Equals _ a b) = Const (getConst a) <> Const (getConst b)
 
 instance IShow EqualityF where
     ishow (Equals _ a b) = Const $ "(= " ++ getConst a ++ " " ++ getConst b ++ ")"

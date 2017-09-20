@@ -22,12 +22,14 @@ module Data.Expression.Array ( ArrayF(..)
                              , store ) where
 
 import Data.Functor.Const
+import Data.Monoid
 import Data.Singletons
 import Data.Singletons.Decide
 
 import Data.Expression.Parser
 import Data.Expression.Sort
 import Data.Expression.Utils.Indexed.Eq
+import Data.Expression.Utils.Indexed.Foldable
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
@@ -50,6 +52,10 @@ instance IFunctor ArrayF where
 
     index (Select _  es _ _  ) = es
     index (Store  is es _ _ _) = SArraySort is es
+
+instance IFoldable ArrayF where
+    ifold (Select _ _ a i)   = Const (getConst a) <> Const (getConst i)
+    ifold (Store  _ _ a i e) = Const (getConst a) <> Const (getConst i) <> Const (getConst e)
 
 instance IShow ArrayF where
     ishow (Select _ _ a i)   = Const $ "(select " ++ getConst a ++ " " ++ getConst i ++ ")"

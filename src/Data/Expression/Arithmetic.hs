@@ -36,6 +36,7 @@ import Data.Monoid
 import Data.Expression.Parser
 import Data.Expression.Sort
 import Data.Expression.Utils.Indexed.Eq
+import Data.Expression.Utils.Indexed.Foldable
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
@@ -72,6 +73,13 @@ instance IFunctor ArithmeticF where
     index Mul      {} = SIntegralSort
     index Divides  {} = SBooleanSort
     index LessThan {} = SBooleanSort
+
+instance IFoldable ArithmeticF where
+    ifold (Const _) = F.Const $ mempty
+    ifold (Add as)  = F.Const . mconcat . map F.getConst $ as
+    ifold (Mul ms)  = F.Const . mconcat . map F.getConst $ ms
+    ifold (_ `Divides` a)  = F.Const . F.getConst $ a
+    ifold (a `LessThan` b) = F.Const (F.getConst a) <> F.Const (F.getConst b)
 
 instance IShow ArithmeticF where
     ishow (Const c)        = F.Const $ show c

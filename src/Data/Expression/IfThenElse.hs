@@ -21,12 +21,14 @@ module Data.Expression.IfThenElse ( IfThenElseF(..)
                                   , ite ) where
 
 import Data.Functor.Const
+import Data.Monoid
 import Data.Singletons
 import Data.Singletons.Decide
 
 import Data.Expression.Parser
 import Data.Expression.Sort
 import Data.Expression.Utils.Indexed.Eq
+import Data.Expression.Utils.Indexed.Foldable
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
 import Data.Expression.Utils.Indexed.Sum
@@ -43,6 +45,9 @@ instance IEq1 IfThenElseF where
 instance IFunctor IfThenElseF where
     imap f (IfThenElse s i t e) = IfThenElse s (f i) (f t) (f e)
     index (IfThenElse s _ _ _) = s
+
+instance IFoldable IfThenElseF where
+    ifold (IfThenElse _ i t e) = Const $ getConst i <> getConst t <> getConst e
 
 instance IShow IfThenElseF where
     ishow (IfThenElse _ i t e) = Const $ "(ite " ++ getConst i ++ " " ++ getConst t ++ " " ++ getConst e ++ ")"

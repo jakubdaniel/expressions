@@ -50,6 +50,7 @@ library
                        Data.Expression.Parser,
                        Data.Expression.Sort,
                        Data.Expression.Utils.Indexed.Eq,
+                       Data.Expression.Utils.Indexed.Foldable,
                        Data.Expression.Utils.Indexed.Functor,
                        Data.Expression.Utils.Indexed.Show,
                        Data.Expression.Utils.Indexed.Sum
