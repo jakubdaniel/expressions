@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs
            , DataKinds
            , KindSignatures
+           , OverloadedStrings
            , RankNTypes
            , ScopedTypeVariables
            , TemplateHaskell
@@ -25,9 +26,11 @@ module Data.Expression.Sort ( Sort(..)
                             , Sing(..)
                             , DynamicSort(..)
                             , DynamicallySorted(..)
+                            , parseSort
                             , toStaticSort
                             , toStaticallySorted ) where
 
+import Data.Attoparsec.Text
 import Data.Kind
 import Data.Singletons
 import Data.Singletons.Decide
@@ -93,3 +96,15 @@ toStaticallySorted dx = case dx of
     DynamicallySorted s x -> case s %~ (sing :: Sing s) of
         Proved Refl -> Just x
         Disproved _ -> Nothing
+
+-- | Parser that accepts sort definitions such as @bool@, @int@, @array int int@, @array int (array ...)@.
+parseSort :: Parser DynamicSort
+parseSort = choice [ bool, int, array ] <?> "Sort" where
+        bool  = string "bool" *> pure (DynamicSort SBooleanSort)
+        int   = string "int"  *> pure (DynamicSort SIntegralSort)
+        array = array' <$> (string "array" *> space *> sort') <*> (space *> sort')
+
+        sort' = choice [ bool, int, char '(' *> array <* char ')' ]
+
+        array' :: DynamicSort -> DynamicSort -> DynamicSort
+        array' (DynamicSort i) (DynamicSort e) = DynamicSort (SArraySort i e)

@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts
            , FlexibleInstances
            , GADTs
+           , MultiParamTypeClasses
+           , OverloadedStrings
            , RankNTypes
            , ScopedTypeVariables
            , TypeInType
@@ -20,7 +22,9 @@ module Data.Expression.IfThenElse ( IfThenElseF(..)
 
 import Data.Functor.Const
 import Data.Singletons
+import Data.Singletons.Decide
 
+import Data.Expression.Parser
 import Data.Expression.Sort
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
@@ -35,6 +39,26 @@ instance IFunctor IfThenElseF where
 
 instance IShow IfThenElseF where
     ishow (IfThenElse _ i t e) = Const $ "(ite " ++ getConst i ++ " " ++ getConst t ++ " " ++ getConst e ++ ")"
+
+instance IfThenElseF :<: f => Parseable IfThenElseF f where
+    parser _ r = do
+        _ <- char '(' *> string "ite" *> space
+        i <- r
+        _ <- space
+        t <- r
+        _ <- space
+        e <- r
+        _ <- char ')'
+        ifThenElse i t e <?> "IfThenElse" where
+
+        ifThenElse :: DynamicallySorted f -> DynamicallySorted f -> DynamicallySorted f -> Parser (DynamicallySorted f)
+        ifThenElse (DynamicallySorted s1 i)
+                   (DynamicallySorted s2 t)
+                   (DynamicallySorted s3 e) = case s1 %~ SBooleanSort of
+            Proved Refl -> case s2 %~ s3 of
+                Proved Refl -> return . DynamicallySorted s2 $ inject (IfThenElse s2 i t e)
+                Disproved _ -> fail "inconsistent sorts of then and else branches"
+            Disproved _ -> fail "branching on non-boolean expression"
 
 -- | A smart constructor for an if-then-else expression
 ite :: forall f s. ( IfThenElseF :<: f, SingI s ) => IFix f 'BooleanSort -> IFix f s -> IFix f s -> IFix f s

@@ -2,6 +2,8 @@
            , FlexibleContexts
            , FlexibleInstances
            , GADTs
+           , MultiParamTypeClasses
+           , OverloadedStrings
            , RankNTypes
            , ScopedTypeVariables
            , TypeInType
@@ -28,6 +30,7 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        , module Data.Expression.Array
                        , module Data.Expression.Equality
                        , module Data.Expression.IfThenElse
+                       , module Data.Expression.Parser
                        , module Data.Expression.Sort
                        , module Data.Expression.Utils.Indexed.Functor
                        , module Data.Expression.Utils.Indexed.Show
@@ -89,7 +92,10 @@ module Data.Expression ( module Data.Expression.Arithmetic
 
 import Algebra.Lattice
 import Control.Applicative
-import Data.List hiding (and, or)
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.Reader
+import Data.List hiding (and, or, union)
+import Data.Map hiding (map, foldr)
 import Data.Maybe
 import Data.Singletons
 import Prelude hiding (and, or, not)
@@ -98,6 +104,7 @@ import Data.Expression.Arithmetic
 import Data.Expression.Array
 import Data.Expression.Equality
 import Data.Expression.IfThenElse
+import Data.Expression.Parser
 import Data.Expression.Sort
 import Data.Expression.Utils.Indexed.Functor
 import Data.Expression.Utils.Indexed.Show
@@ -200,6 +207,29 @@ instance IFunctor VarF where
 instance IShow VarF where
     ishow (Var n s) = F.Const ("(" ++ n ++ " : " ++ show s ++ ")")
 
+instance VarF :<: f => Parseable VarF f where
+    parser _ _ = choice [ var', var'' ] <?> "Var" where
+        var' = do
+            _ <- char '('
+            n <- identifier
+            _ <- space *> char ':' *> space
+            s <- lift . lift $ parseSort
+            _ <- char ')'
+
+            assertSort n s
+
+            var''' n s
+
+        var'' = do
+            n <- many1 letter
+
+            s <- assumeSort n
+
+            var''' n s
+
+        var''' :: VariableName -> DynamicSort -> Parser (DynamicallySorted f)
+        var''' n (DynamicSort (s :: Sing s)) = return $ DynamicallySorted s (inject (Var n s))
+
 -- | A smart constructor for variables of any sort in any language
 -- Takes the variable name and infers the target language and sort from context.
 --
@@ -240,6 +270,46 @@ instance IShow DisjunctionF where
 
 instance IShow NegationF where
     ishow (Not n)  = F.Const $ "(not " ++ F.getConst n ++ ")"
+
+instance ConjunctionF :<: f => Parseable ConjunctionF f where
+    parser _ r = choice [ true',  and' ] <?> "Conjunction" where
+        true'  = string "true"  *> pure (DynamicallySorted SBooleanSort $ true)
+
+        and' = do
+            _  <- char '(' *> string "and" *> space
+            as <- r `sepBy1` space
+            _  <- char ')'
+            and'' as
+
+        and'' as = case mapM toStaticallySorted as of
+            Just as' -> return . DynamicallySorted SBooleanSort $ and as'
+            Nothing  -> fail "and of non-boolean arguments"
+
+instance DisjunctionF :<: f => Parseable DisjunctionF f where
+    parser _ r = choice [ false', or' ] <?> "Disjunction" where
+        false' = string "false" *> pure (DynamicallySorted SBooleanSort $ false)
+
+        or' = do
+            _  <- char '(' *> string "or" *> space
+            os <- r `sepBy1` space
+            _  <- char ')'
+            or'' os
+
+        or'' os = case mapM toStaticallySorted os of
+            Just os' -> return . DynamicallySorted SBooleanSort $ or os'
+            Nothing  -> fail "or of non-boolean arguments"
+
+instance NegationF :<: f => Parseable NegationF f where
+    parser _ r = not' <?> "Negation" where
+        not' = do
+            _ <- char '(' *> string "not" *> space
+            n <- r
+            _ <- char ')'
+            not'' n
+
+        not'' n = case toStaticallySorted n of
+            Just n' -> return . DynamicallySorted SBooleanSort $ not n'
+            Nothing -> fail "not of non-boolean arguments"
 
 -- | `literals` decomposes a boolean combination (formed with conjunctions and disjunctions, preferably in negation normal form) into its constituents.
 literals :: ( ConjunctionF :<: f, DisjunctionF :<: f ) => IFix f 'BooleanSort -> [IFix f 'BooleanSort]
@@ -350,6 +420,54 @@ instance IShow (UniversalF v) where
 
 instance IShow (ExistentialF v) where
     ishow (Exists vs phi) = F.Const $ "(exists (" ++ intercalate " " (map show vs) ++ ") " ++ F.getConst phi ++ ")"
+
+instance ( UniversalF v :<: f, SingI v ) => Parseable (UniversalF v) f where
+    parser _ r = forall' <?> "Universal" where
+        var' :: Parser (DynamicallySorted VarF)
+        var' = parser (Proxy :: Proxy VarF) var'
+
+        forall' = do
+            _   <- char '(' *> string "forall" *> space *> char '('
+            vs  <- var' `sepBy1` space
+            _   <- char ')' *> space
+            phi <- local (union (fromList $ map context vs)) r
+            _   <- char ')'
+            forall'' vs phi
+
+        forall'' [] _   = fail "quantifying zero variables"
+        forall'' vs phi = case (mapM toStaticallySorted vs :: Maybe [Var v]) of
+            Just vs' -> case toStaticallySorted phi of
+                Just phi' -> return . DynamicallySorted SBooleanSort $ forall vs' phi'
+                Nothing   -> fail "quantifying non-boolean expression"
+            Nothing  -> fail "ill-sorted quantifier"
+
+        context (DynamicallySorted s v) = case match v of
+            Just (Var n _) -> (n, DynamicSort s)
+            _              -> error "impossible error"
+
+instance ( ExistentialF v :<: f, SingI v ) => Parseable (ExistentialF v) f where
+    parser _ r = exists' <?> "Existential" where
+        var' :: Parser (DynamicallySorted VarF)
+        var' = parser (Proxy :: Proxy VarF) var'
+
+        exists' = do
+            _   <- char '(' *> string "exists" *> space *> char '('
+            vs  <- var' `sepBy1` space
+            _   <- char ')' *> space
+            phi <- local (union (fromList $ map context vs)) r
+            _   <- char ')'
+            exists'' vs phi
+
+        exists'' [] _   = fail "quantifying zero variables"
+        exists'' vs phi = case (mapM toStaticallySorted vs :: Maybe [Var v]) of
+            Just vs' -> case toStaticallySorted phi of
+                Just phi' -> return . DynamicallySorted SBooleanSort $ exists vs' phi'
+                Nothing   -> fail "quantifying non-boolean expression"
+            Nothing  -> fail "ill-sorted quantifier"
+
+        context (DynamicallySorted s v) = case match v of
+            Just (Var n _) -> (n, DynamicSort s)
+            _              -> error "impossible error"
 
 -- | A smart constructor for universally quantified formulae
 forall :: UniversalF v :<: f => [Var v] -> IFix f 'BooleanSort -> IFix f 'BooleanSort

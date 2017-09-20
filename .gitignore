@@ -13,6 +13,7 @@
 !src/Data/Expression/Array.hs
 !src/Data/Expression/Equality.hs
 !src/Data/Expression/IfThenElse.hs
+!src/Data/Expression/Parser.hs
 !src/Data/Expression/Sort.hs
 !src/Data/Expression/Utils/
 !src/Data/Expression/Utils/Indexed/
