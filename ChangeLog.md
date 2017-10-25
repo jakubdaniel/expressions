@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.1.4
+
+* Bump dependencies
+
 ## 0.1.3
 
 * Extracting variables occurring in expression
