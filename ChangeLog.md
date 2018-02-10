@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.1.5
+
+* Bump dependencies, fix equality, tweak readme
+
 ## 0.1.4
 
 * Bump dependencies

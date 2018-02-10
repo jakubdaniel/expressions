@@ -5,6 +5,7 @@
 !README.md
 !LICENSE
 !expressions.cabal
+!stack.yaml
 !src/
 !src/Data/
 !src/Data/Expression.hs

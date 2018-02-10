@@ -53,9 +53,10 @@ data ArithmeticF a (s :: Sort) where
     LessThan :: a 'IntegralSort -> a 'IntegralSort -> ArithmeticF a 'BooleanSort
 
 instance IEq1 ArithmeticF where
-    Const a  `ieq1` Const b  = a == b
-    Add   as `ieq1` Add   bs = foldr (&&) True $ zipWith ieq as bs
-    Mul   as `ieq1` Mul   bs = foldr (&&) True $ zipWith ieq as bs
+    Const a  `ieq1` Const b = a == b
+
+    Add as `ieq1` Add bs | length as == length bs = foldr (&&) True $ zipWith ieq as bs
+    Mul as `ieq1` Mul bs | length as == length bs = foldr (&&) True $ zipWith ieq as bs
 
     Divides  c a `ieq1` Divides  d b = a `ieq` b && c == d
     LessThan a c `ieq1` LessThan b d = a `ieq` b && c `ieq` d
