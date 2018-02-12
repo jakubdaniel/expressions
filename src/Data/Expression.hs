@@ -121,12 +121,14 @@ module Data.Expression ( module Data.Expression.Arithmetic
 
 import Algebra.Lattice
 import Control.Applicative hiding (Const)
+import Control.Comonad.Trans.Coiter
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
+import Data.Functor.Identity
 import Data.List hiding (and, or, union)
-import Data.Map hiding (map, drop, foldr, mapMaybe, partition)
+import Data.Map hiding (map, drop, foldl, foldr, mapMaybe, partition)
 import Data.Maybe
 import Data.Monoid hiding ((<>))
 import Data.Semigroup hiding (First, getFirst)
@@ -695,24 +697,25 @@ freename a = head $ dropWhile (\s -> any (>= s) ns) pool where
 
     pool = [ [x] | x <- ['a'..'z'] ] ++ [ x ++ [y] | x <- pool, y <- ['a'..'z'] ]
 
-freenames :: forall f (s :: Sort). ( VarF :<: f, IFunctor f, IFoldable f ) => IFix f s -> [String]
-freenames a = map (\n -> freename a ++ show n) ([0..] :: [Int])
+type VariableNamePool = Coiter String
 
-pushQuantifier' :: ( VarF :<: f, IEq1 f ) => ([Var v] -> IFix f 'BooleanSort -> IFix f 'BooleanSort) -> [Var v] -> IFix f 'BooleanSort -> State ([String], IFix f 'BooleanSort -> IFix f 'BooleanSort) (IFix f 'BooleanSort)
+freenames :: forall f (s :: Sort). ( VarF :<: f, IFunctor f, IFoldable f ) => IFix f s -> VariableNamePool
+freenames a = fmap (\n -> freename a ++ show n) $ unfold (succ . runIdentity) (Identity (0 :: Int))
+
+pushQuantifier' :: ( VarF :<: f, IEq1 f ) => ([Var v] -> IFix f 'BooleanSort -> IFix f 'BooleanSort) -> [Var v] -> IFix f 'BooleanSort -> State (VariableNamePool, IFix f 'BooleanSort -> IFix f 'BooleanSort) (IFix f 'BooleanSort)
 pushQuantifier' c vs a = do
     (ns, q) <- get
 
-    let vs' = zipWith (\(IFix (Var _ s)) n' -> IFix (Var n' s)) vs ns
-        ns' = drop (length vs) ns
-        q'  = c vs' . q
-        sub = mconcat $ zipWith (\(IFix (Var n s)) n' -> inject (Var n' s) `for` inject (Var n s)) vs ns
+    let (vs', ns') = foldl (\(vs, ns) (IFix (Var _ s)) -> let (n', ns') = runCoiter ns in (IFix (Var n' s) : vs, ns')) ([], ns) vs
+        q'         = c vs' . q
+        sub        = mconcat . fst $ foldl (\(ss, ns) (IFix (Var n s)) -> let (n', ns') = runCoiter ns in (inject (Var n' s) `for` inject (Var n s) : ss, ns')) ([], ns) vs
 
     put (ns', q')
 
     return $ a `substitute` sub
 
 class MaybeQuantified f => MaybeQuantified' f g where
-    pushQuantifier :: f (IFix g) s -> State ([String], IFix g 'BooleanSort -> IFix g 'BooleanSort) (IFix g s)
+    pushQuantifier :: f (IFix g) s -> State (VariableNamePool, IFix g 'BooleanSort -> IFix g 'BooleanSort) (IFix g s)
 
 instance ( VarF :<: g, UniversalF v :<: g, IEq1 g ) => MaybeQuantified' (UniversalF v) g where
     pushQuantifier (Forall vs a) = pushQuantifier' forall vs a
@@ -735,29 +738,33 @@ prenex :: forall f. Prenex f => IFix f 'BooleanSort -> IFix f 'BooleanSort
 prenex f = let (a, (_, q)) = runState (imapM (pushQuantifier . unIFix) (nnf f)) (freenames f, id) in q a
 
 class Bind f g where
-    bind :: Proxy f -> IFix g s -> Maybe (Bool, State ([String], [([DynamicallySorted VarF], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s))
+    bind :: Proxy f -> IFix g s -> Maybe (Bool, State (VariableNamePool, [([DynamicallySorted VarF], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s))
 
 instance forall g v. ( VarF :<: g, EqualityF :<: g, NegationF :<: g, DisjunctionF :<: g, UniversalF v :<: g, MaybeQuantified g, SingI v ) => Bind (UniversalF v) g where
     bind _ a = case index (unIFix a) %~ (sing :: Sing v) of
         Proved Refl -> Just . (\s -> (False, s)) $ do
-            (n : ns, q) <- get
+            (ns, q) <- get
 
             let x :: forall f. VarF :<: f => IFix f v
                 x = var n
 
-            put (ns, (freevars a, forall [x] . (x .=. a .->.)) : q)
+                (n, ns') = runCoiter ns
+
+            put (ns', (freevars a, forall [x] . (x .=. a .->.)) : q)
             return x
         Disproved _ -> Nothing
 
 instance forall g v. ( VarF :<: g, EqualityF :<: g, ConjunctionF :<: g, ExistentialF v :<: g, MaybeQuantified g, SingI v ) => Bind (ExistentialF v) g where
     bind _ a = case index (unIFix a) %~ (sing :: Sing v) of
         Proved Refl -> Just . (\s -> (True, s)) $ do
-            (n : ns, q) <- get
+            (ns, q) <- get
 
             let x :: forall f. VarF :<: f => IFix f v
                 x = var n
 
-            put (ns, (freevars a, exists [x] . (x .=. a .&.)) : q)
+                (n, ns') = runCoiter ns
+
+            put (ns', (freevars a, exists [x] . (x .=. a .&.)) : q)
             return x
         Disproved _ -> Nothing
 
@@ -777,7 +784,7 @@ instance {-# OVERLAPPABLE #-} Bind f g where
     bind _ _ = Nothing
 
 class Bind' f g where
-    bind' :: Bind g g => f (IFix g) s -> Maybe (Bool, State ([String], [([DynamicallySorted VarF], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s))
+    bind' :: Bind g g => f (IFix g) s -> Maybe (Bool, State (VariableNamePool, [([DynamicallySorted VarF], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s))
 
 instance VarF :<: g => Bind' VarF g where
     bind' v = Just (True, return . inject $ v)
@@ -801,11 +808,11 @@ instance ( Bind' f h, Bind' g h ) => Bind' (f :+: g) h where
 instance {-# OVERLAPPABLE #-} f :<: g => Bind' f g where
     bind' a = bind (Proxy :: Proxy g) (inject a)
 
-bind'' :: forall f (s :: Sort). ( Bind f f, Bind' f f ) => IFix f s -> State ([String], [([DynamicallySorted VarF], IFix f 'BooleanSort -> IFix f 'BooleanSort)]) (IFix f s)
+bind'' :: forall f (s :: Sort). ( Bind f f, Bind' f f ) => IFix f s -> State (VariableNamePool, [([DynamicallySorted VarF], IFix f 'BooleanSort -> IFix f 'BooleanSort)]) (IFix f s)
 bind'' a = fromMaybe (return a) . fmap snd . bind' . unIFix $ a
 
 class MaybeQuantified'' f g where
-    flatten' :: ( Bind g g, Bind' g g ) => f (IFix g) s -> State ([String], [([DynamicallySorted VarF], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s)
+    flatten' :: ( Bind g g, Bind' g g ) => f (IFix g) s -> State (VariableNamePool, [([DynamicallySorted VarF], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s)
 
 instance ArrayF :<: g => MaybeQuantified'' ArrayF g where
     flatten' (Select is es a i) = do
@@ -874,17 +881,19 @@ instance {-# OVERLAPPABLE #-} Forall f g where
     quantify _ _ = Nothing
 
 class Axiomatized f g where
-    instantiate :: Forall g g => IFix g s -> f (IFix g) s -> Maybe (State [String] (IFix g 'BooleanSort))
+    instantiate :: Forall g g => IFix g s -> f (IFix g) s -> Maybe (State VariableNamePool (IFix g 'BooleanSort))
 
 instance ( VarF :<: g, ConjunctionF :<: g, DisjunctionF :<: g, NegationF :<: g, EqualityF :<: g, ArrayF :<: g ) => Axiomatized ArrayF g where
     instantiate a' (Store (is :: Sing is) es a i e) = case quantify (Proxy :: Proxy g) is of
         Just q -> Just $ do
-            (n : ns) <- get
+            ns <- get
 
             let j :: forall f. VarF :<: f => IFix f is
                 j = inject $ Var n is
 
-            put ns
+                (n, ns') = runCoiter ns
+
+            put ns'
 
             return $ inject (Equals es (inject (Select is es a' i)) e) .&. q [j] (not (inject (Equals is i j)) .->. inject (Equals es (inject (Select is es a' j)) (inject (Select is es a j))))
         Nothing -> Nothing
@@ -903,5 +912,5 @@ instance ( VarF :<: f, EqualityF :<: f, Bind f f, Bind' f f, MaybeQuantified'' f
 -- | Replaces `store` with an instance of its axiomatization.
 unstore :: forall f. Unstore f => IFix f 'BooleanSort -> IFix f 'BooleanSort
 unstore a = let a' = flatten a in evalState (imapM unstore' a') (freenames a') where
-    unstore' :: IFix f s -> State [String] (IFix f s)
+    unstore' :: IFix f s -> State VariableNamePool (IFix f s)
     unstore' a' = fromMaybe (return a') (match a' >>= \(Equals _ l r) -> instantiate l (unIFix r) <|> instantiate r (unIFix l))
