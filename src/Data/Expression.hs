@@ -128,7 +128,8 @@ import Control.Monad.Trans.State
 import Data.List hiding (and, or, union)
 import Data.Map hiding (map, drop, foldr, mapMaybe, partition)
 import Data.Maybe
-import Data.Monoid
+import Data.Monoid hiding ((<>))
+import Data.Semigroup hiding (First, getFirst)
 import Data.Singletons
 import Data.Singletons.Decide
 import Prelude hiding (and, or, not)
@@ -308,9 +309,12 @@ substitute a s = case runSubstitution s a of
     Just b -> b
     Nothing -> IFix . imap (flip substitute s) . unIFix $ a
 
+instance Semigroup (Substitution f) where
+    (Substitution f) <> (Substitution g) = Substitution $ \a -> getFirst (mconcat ([First . f, First . g] <*> [a]))
+
 instance Monoid (Substitution f) where
     mempty  = Substitution (const Nothing)
-    (Substitution f) `mappend` (Substitution g) = Substitution $ \a -> getFirst (mconcat ([First . f, First . g] <*> [a]))
+    mappend = (<>)
 
 -- | A functor representing a logical connective for conjunction
 data ConjunctionF a (s :: Sort) where
