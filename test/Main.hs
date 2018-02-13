@@ -32,16 +32,26 @@ c3 = cnst 3
 main :: IO ()
 main = guard (P.and props) where
 
-    props = [ e1 == (parseJust "(a : int)"                                                                   :: ALia 'IntegralSort)
-            , e2 /= (parseJust "(+ (a : int) 3)"                                                             :: ALia 'IntegralSort)
-            , e3 == (parseJust "(+ (a : int) 1)"                                                             :: ALia 'IntegralSort)
-            , e4 == (parseJust "(select (a : array int (array int bool)) (+ (b : int) 3))"                   :: QFALia ('ArraySort 'IntegralSort 'BooleanSort))
-            , e5 == (parseJust "(forall ((x : int)) (exists ((y : int)) (and true (= (b : bool) (< x y)))))" :: Lia 'BooleanSort)
-            , e6 == (parseJust "(and (forall ((x : int) (y : int)) (< x (+ y (z : int)))) (= z 3))"          :: Lia 'BooleanSort) ]
+    props = [ e1 == parseJust "(a : int)"
+            , e2 /= parseJust "(+ (a : int) 3)"
+            , e3 == parseJust "(+ (a : int) 1)"
+            , e4 == parseJust "(select (a : array int (array int bool)) (+ (b : int) 3))"
+            , e5 == parseJust "(forall ((x : int)) (exists ((y : int)) (and true (= (b : bool) (< x y)))))"
+            , e6 == parseJust "(and (forall ((x : int) (y : int)) (< x (+ y (z : int)))) (= z 3))"
+            , e7 == e8 ]
 
+    e1, e2, e3 :: ALia 'IntegralSort
     e1 = a
     e2 = a
     e3 = a .+. c1
+
+    e4 :: QFALia ('ArraySort 'IntegralSort 'BooleanSort)
     e4 = select a (b .+. c3)
+
+    e5, e6 :: Lia 'BooleanSort
     e5 = forall [x :: Var 'IntegralSort] (exists [y :: Var 'IntegralSort] (and [true, b .=. (x .<. y)]))
     e6 = forall [x :: Var 'IntegralSort, y] (x .<. y .+. z) .&. z .=. c3
+
+    e7, e8 :: Lia 'IntegralSort
+    e7 = a .*. (a .+. c3) `substitute` (c3 `for` (a .+. c3))
+    e8 = inject (Mul [a, c3])
