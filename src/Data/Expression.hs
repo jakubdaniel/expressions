@@ -699,6 +699,9 @@ freename a = head $ dropWhile (\s -> any (>= s) ns) pool where
 
 type VariableNamePool = Coiter String
 
+rename :: VariableNamePool -> [Var v] -> ([Var v], VariableNamePool)
+rename pool = foldl (\(vs, ns) (IFix (Var _ s)) -> let (n', ns') = runCoiter ns in (IFix (Var n' s) : vs, ns')) ([], pool)
+
 freenames :: forall f (s :: Sort). ( VarF :<: f, IFunctor f, IFoldable f ) => IFix f s -> VariableNamePool
 freenames a = fmap (\n -> freename a ++ show n) $ unfold (succ . runIdentity) (Identity (0 :: Int))
 
@@ -706,9 +709,9 @@ pushQuantifier' :: ( VarF :<: f, IEq1 f ) => ([Var v] -> IFix f 'BooleanSort -> 
 pushQuantifier' c vs a = do
     (ns, q) <- get
 
-    let (vs', ns') = foldl (\(vs, ns) (IFix (Var _ s)) -> let (n', ns') = runCoiter ns in (IFix (Var n' s) : vs, ns')) ([], ns) vs
+    let (vs', ns') = rename ns vs
         q'         = c vs' . q
-        sub        = mconcat . fst $ foldl (\(ss, ns) (IFix (Var n s)) -> let (n', ns') = runCoiter ns in (inject (Var n' s) `for` inject (Var n s) : ss, ns')) ([], ns) vs
+        sub        = mconcat $ zipWith (\(IFix (Var n s)) (IFix (Var n' _)) -> inject (Var n' s) `for` inject (Var n s)) vs vs'
 
     put (ns', q')
 
