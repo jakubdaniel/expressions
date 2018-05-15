@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.1.6
+
+* GHC 8.4 compatibility
+
 ## 0.1.5
 
 * Bump dependencies, fix equality, tweak readme

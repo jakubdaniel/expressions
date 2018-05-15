@@ -22,7 +22,6 @@ module Data.Expression.Array ( ArrayF(..)
                              , store ) where
 
 import Data.Functor.Const
-import Data.Monoid
 import Data.Singletons
 import Data.Singletons.Decide
 

@@ -21,7 +21,6 @@ module Data.Expression.Equality ( EqualityF(..)
                                 , (.=.) ) where
 
 import Data.Functor.Const
-import Data.Monoid
 import Data.Singletons
 import Data.Singletons.Decide
 

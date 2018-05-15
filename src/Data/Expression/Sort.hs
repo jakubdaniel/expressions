@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -fno-warn-unused-binds #-}
 
-{-# LANGUAGE GADTs
+{-# LANGUAGE EmptyCase
            , DataKinds
+           , GADTs
            , KindSignatures
            , OverloadedStrings
            , RankNTypes
