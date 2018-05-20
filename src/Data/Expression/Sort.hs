@@ -32,6 +32,7 @@ module Data.Expression.Sort ( Sort(..)
                             , toStaticallySorted ) where
 
 import Data.Attoparsec.Text
+import Data.Functor
 import Data.Kind
 import Data.Singletons
 import Data.Singletons.Decide
@@ -107,8 +108,8 @@ toStaticallySorted dx = case dx of
 -- | Parser that accepts sort definitions such as @bool@, @int@, @array int int@, @array int (array ...)@.
 parseSort :: Parser DynamicSort
 parseSort = choice [ bool, int, array ] <?> "Sort" where
-        bool  = string "bool" *> pure (DynamicSort SBooleanSort)
-        int   = string "int"  *> pure (DynamicSort SIntegralSort)
+        bool  = string "bool" $> DynamicSort SBooleanSort
+        int   = string "int"  $> DynamicSort SIntegralSort
         array = array' <$> (string "array" *> space *> sort') <*> (space *> sort')
 
         sort' = choice [ bool, int, char '(' *> array <* char ')' ]
