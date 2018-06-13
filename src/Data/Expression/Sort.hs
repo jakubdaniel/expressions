@@ -28,6 +28,7 @@ module Data.Expression.Sort ( Sort(..)
                             , DynamicSort(..)
                             , DynamicallySorted(..)
                             , parseSort
+                            , toDynamicallySorted
                             , toStaticSort
                             , toStaticallySorted ) where
 
@@ -96,6 +97,10 @@ toStaticSort dx = case dx of
     DynamicSort x -> case x %~ (sing :: Sing s) of
         Proved Refl -> Just x
         Disproved _ -> Nothing
+
+-- | Converts a statically sorted expression to a dynamically sorted one.
+toDynamicallySorted :: forall f (s :: Sort). SingI s => IFix f s -> DynamicallySorted f
+toDynamicallySorted = DynamicallySorted (sing :: Sing s)
 
 -- | Tries to convert an expression (`DynamicallySorted`) of some sort to an expression of requested sort.
 -- Performs no conversions.

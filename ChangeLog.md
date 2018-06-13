@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.1.7
+
+* Added simple utility function `toDynamicallySorted`
+
 ## 0.1.6
 
 * GHC 8.4 compatibility
