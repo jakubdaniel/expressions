@@ -67,7 +67,7 @@ instance EqualityF :<: f => Parseable EqualityF f where
         equals :: DynamicallySorted f -> DynamicallySorted f -> Parser (DynamicallySorted f)
         equals (DynamicallySorted s1 a)
                (DynamicallySorted s2 b) = case s1 %~ s2 of
-            Proved Refl -> return . DynamicallySorted SBooleanSort $ inject (Equals s1 a b)
+            Proved Refl -> return . toDynamicallySorted . inject $ Equals s1 a b
             Disproved _ -> fail "multi-sorted equality"
 
 -- | A smart constructor for an equality predicate

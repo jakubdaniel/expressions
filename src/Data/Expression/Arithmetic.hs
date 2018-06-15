@@ -99,7 +99,7 @@ instance IShow ArithmeticF where
 
 instance ArithmeticF :<: f => Parseable ArithmeticF f where
     parser _ r = choice [ cnst', add', mul', divides', lessThan' ] <?> "Arithmetic" where
-        cnst' = DynamicallySorted SIntegralSort . cnst <$> signed decimal
+        cnst' = toDynamicallySorted . cnst <$> signed decimal
 
         add' = do
             _  <- char '(' *> char '+' *> space
@@ -130,19 +130,19 @@ instance ArithmeticF :<: f => Parseable ArithmeticF f where
             lessThan'' a b
 
         add'' as = case mapM toStaticallySorted as of
-            Just as' -> return . DynamicallySorted SIntegralSort $ add as'
+            Just as' -> return . toDynamicallySorted . add $ as'
             Nothing  -> fail "add of non-integral arguments"
 
         mul'' ms = case mapM toStaticallySorted ms of
-            Just ms' -> return . DynamicallySorted SIntegralSort $ mul ms'
+            Just ms' -> return . toDynamicallySorted . mul $ ms'
             Nothing  -> fail "mul of non-integral arguments"
 
         divides'' c a = case toStaticallySorted a of
-            Just a' -> return . DynamicallySorted SBooleanSort $ c .\. a'
+            Just a' -> return . toDynamicallySorted $ c .\. a'
             _       -> fail "divisibility of non-integral argument"
 
         lessThan'' a b = case mapM toStaticallySorted [a, b] of
-            Just [a', b'] -> return . DynamicallySorted SBooleanSort $ a' .<. b'
+            Just [a', b'] -> return . toDynamicallySorted $ a' .<. b'
             _             -> fail "less-than of non-integral arguments"
 
 -- | A smart constructor for integer constants

@@ -382,7 +382,7 @@ instance IShow NegationF where
 
 instance ConjunctionF :<: f => Parseable ConjunctionF f where
     parser _ r = choice [ true',  and' ] <?> "Conjunction" where
-        true'  = string "true"  *> pure (DynamicallySorted SBooleanSort $ true)
+        true'  = string "true"  *> pure (toDynamicallySorted true)
 
         and' = do
             _  <- char '(' *> string "and" *> space
@@ -391,12 +391,12 @@ instance ConjunctionF :<: f => Parseable ConjunctionF f where
             and'' as
 
         and'' as = case mapM toStaticallySorted as of
-            Just as' -> return . DynamicallySorted SBooleanSort $ and as'
+            Just as' -> return . toDynamicallySorted . and $ as'
             Nothing  -> fail "and of non-boolean arguments"
 
 instance DisjunctionF :<: f => Parseable DisjunctionF f where
     parser _ r = choice [ false', or' ] <?> "Disjunction" where
-        false' = string "false" *> pure (DynamicallySorted SBooleanSort $ false)
+        false' = string "false" *> pure (toDynamicallySorted false)
 
         or' = do
             _  <- char '(' *> string "or" *> space
@@ -405,7 +405,7 @@ instance DisjunctionF :<: f => Parseable DisjunctionF f where
             or'' os
 
         or'' os = case mapM toStaticallySorted os of
-            Just os' -> return . DynamicallySorted SBooleanSort $ or os'
+            Just os' -> return . toDynamicallySorted . or $ os'
             Nothing  -> fail "or of non-boolean arguments"
 
 instance NegationF :<: f => Parseable NegationF f where
@@ -417,7 +417,7 @@ instance NegationF :<: f => Parseable NegationF f where
             not'' n
 
         not'' n = case toStaticallySorted n of
-            Just n' -> return . DynamicallySorted SBooleanSort $ not n'
+            Just n' -> return . toDynamicallySorted . not $ n'
             Nothing -> fail "not of non-boolean arguments"
 
 -- | `literals` decomposes a boolean combination (formed with conjunctions and disjunctions, preferably in negation normal form) into its constituents.
@@ -566,7 +566,7 @@ instance ( UniversalF v :<: f, SingI v ) => Parseable (UniversalF v) f where
         forall'' [] _   = fail "quantifying zero variables"
         forall'' vs phi = case (mapM toStaticallySorted vs :: Maybe [Var v]) of
             Just vs' -> case toStaticallySorted phi of
-                Just phi' -> return . DynamicallySorted SBooleanSort $ forall vs' phi'
+                Just phi' -> return . toDynamicallySorted . forall vs' $ phi'
                 Nothing   -> fail "quantifying non-boolean expression"
             Nothing  -> fail "ill-sorted quantifier"
 
@@ -590,7 +590,7 @@ instance ( ExistentialF v :<: f, SingI v ) => Parseable (ExistentialF v) f where
         exists'' [] _   = fail "quantifying zero variables"
         exists'' vs phi = case (mapM toStaticallySorted vs :: Maybe [Var v]) of
             Just vs' -> case toStaticallySorted phi of
-                Just phi' -> return . DynamicallySorted SBooleanSort $ exists vs' phi'
+                Just phi' -> return . toDynamicallySorted . exists vs' $ phi'
                 Nothing   -> fail "quantifying non-boolean expression"
             Nothing  -> fail "ill-sorted quantifier"
 
