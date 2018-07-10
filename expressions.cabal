@@ -1,5 +1,5 @@
 name:                expressions
-version:             0.1.8
+version:             0.1.9
 synopsis:            Expressions and Formulae a la carte
 description:
   This package is aimed at providing means of fixing a first-order language and
@@ -73,7 +73,7 @@ library
   build-depends:       attoparsec >=0.13 && <0.14,
                        base >=4.11 && <4.13,
                        containers >=0.5.7 && <0.7,
-                       free >=4.2 && <5.1,
+                       free >=4.2 && <5.2,
                        lattices >=1.6 && <1.8,
                        singletons >=2.2 && <2.5,
                        text >=1.2 && <1.3,

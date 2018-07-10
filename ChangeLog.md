@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.1.9
+
+* Bump dependencies
+
 ## 0.1.8
 
 * Bump dependencies
