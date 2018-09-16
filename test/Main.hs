@@ -38,7 +38,10 @@ main = guard (P.and props) where
             , e4 == parseJust "(select (a : array int (array int bool)) (+ (b : int) 3))"
             , e5 == parseJust "(forall ((x : int)) (exists ((y : int)) (and true (= (b : bool) (< x y)))))"
             , e6 == parseJust "(and (forall ((x : int) (y : int)) (< x (+ y (z : int)))) (= z 3))"
-            , e7 == e8 ]
+            , e7 == e8
+            , e9 == e10
+            , isJust (restrict e9 :: Maybe (QFALia ('ArraySort 'IntegralSort 'BooleanSort)))
+            , isNothing (restrict e5 :: Maybe (QFLia 'BooleanSort)) ]
 
     e1, e2, e3 :: ALia 'IntegralSort
     e1 = a
@@ -55,3 +58,7 @@ main = guard (P.and props) where
     e7, e8 :: Lia 'IntegralSort
     e7 = a .*. (a .+. c3) `substitute` (c3 `for` (a .+. c3))
     e8 = inject (Mul [a, c3])
+
+    e9, e10 :: ALia ('ArraySort 'IntegralSort 'BooleanSort)
+    e9  = select a (b .+. c3)
+    e10 = embed e4

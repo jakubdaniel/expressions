@@ -13,7 +13,9 @@
 -- Stability  :  experimental
 --------------------------------------------------------------------------------
 
-module Data.Expression.Utils.Indexed.Sum ((:+:)(..), (:<:)(..), inject, match) where
+module Data.Expression.Utils.Indexed.Sum ((:+:)(..), (:<:)(..), (:<<:), inject, match, embed, restrict) where
+
+import Control.Monad
 
 import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Foldable
@@ -50,6 +52,20 @@ instance {-# OVERLAPPABLE #-} (IFunctor f, IFunctor g, IFunctor h, f :<: g) => f
     prj (InL _) = Nothing
     prj (InR a) = prj a
 
+class (IFunctor f, IFunctor g) => f :<<: g where
+    emb :: f a i -> g a i
+    res :: g a i -> Maybe (f a i)
+
+instance (IFunctor f, IFunctor g) => f :<<: (g :+: f) where
+    emb = InR
+    res (InL _) = Nothing
+    res (InR a) = Just a
+
+instance {-# OVERLAPPABLE #-} (IFunctor f, IFunctor g, IFunctor h, f :<<: g) => f :<<: (h :+: g) where
+    emb = InR . emb
+    res (InL _) = Nothing
+    res (InR a) = res a
+
 -- | Inject a component into a sum.
 inject :: g :<: f => forall i. g (IFix f) i -> IFix f i
 inject = IFix . inj
@@ -57,6 +73,14 @@ inject = IFix . inj
 -- | Try to unpack a sum into a component.
 match :: g :<: f => forall i. IFix f i -> Maybe (g (IFix f) i)
 match = prj . unIFix
+
+-- | Embed a subset in a superset.
+embed :: (IFunctor f, f :<<: g) => IFix f i -> IFix g i
+embed = icata (IFix . emb)
+
+-- | Try to restrict a superset to a subset.
+restrict :: (ITraversable g, f :<<: g) => IFix g i -> Maybe (IFix f i)
+restrict = fmap IFix . res <=< (itraverse restrict) . unIFix
 
 instance (IEq1 f, IEq1 g) => IEq1 (f :+: g) where
     InL a `ieq1` InL b = a `ieq1` b

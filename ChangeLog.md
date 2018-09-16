@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.2
+
+* Add `embed` and `restrict` to convert between expression languages
+
 ## 0.1.9
 
 * Bump dependencies
