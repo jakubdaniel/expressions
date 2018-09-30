@@ -29,6 +29,7 @@ module Data.Expression.Arithmetic ( ArithmeticF(..)
                                   , (.<=.)
                                   , (.>=.) ) where
 
+import Data.Coerce
 import Data.List
 import Data.Maybe
 import Data.Monoid
@@ -77,11 +78,11 @@ instance IFunctor ArithmeticF where
     index LessThan {} = SBooleanSort
 
 instance IFoldable ArithmeticF where
-    ifold (Const _) = F.Const $ mempty
-    ifold (Add as)  = F.Const . mconcat . map F.getConst $ as
-    ifold (Mul ms)  = F.Const . mconcat . map F.getConst $ ms
-    ifold (_ `Divides` a)  = F.Const . F.getConst $ a
-    ifold (a `LessThan` b) = F.Const (F.getConst a) <> F.Const (F.getConst b)
+    ifold (Const _) = mempty
+    ifold (Add as)  = mconcat as
+    ifold (Mul ms)  = mconcat ms
+    ifold (_ `Divides` a)  = coerce a
+    ifold (a `LessThan` b) = coerce a <> coerce b
 
 instance ITraversable ArithmeticF where
     itraverse _ (Const c) = pure (Const c)
@@ -91,11 +92,11 @@ instance ITraversable ArithmeticF where
     itraverse f (a `LessThan` b) = LessThan <$> f a <*> f b
 
 instance IShow ArithmeticF where
-    ishow (Const c)        = F.Const $ show c
-    ishow (Add as)         = F.Const $ "(+ " ++ intercalate " " (map F.getConst as) ++ ")"
-    ishow (Mul ms)         = F.Const $ "(* " ++ intercalate " " (map F.getConst ms) ++ ")"
-    ishow (c `Divides`  a) = F.Const $ "(" ++ show c ++ "| " ++ F.getConst a ++ ")"
-    ishow (a `LessThan` b) = F.Const $ "(< " ++ F.getConst a ++ " " ++ F.getConst b ++ ")"
+    ishow (Const c)        = coerce $ show c
+    ishow (Add as)         = coerce $ "(+ " ++ intercalate " " (coerce as) ++ ")"
+    ishow (Mul ms)         = coerce $ "(* " ++ intercalate " " (coerce ms) ++ ")"
+    ishow (c `Divides`  a) = coerce $ "(" ++ show c ++ "| " ++ coerce a ++ ")"
+    ishow (a `LessThan` b) = coerce $ "(< " ++ coerce a ++ " " ++ coerce b ++ ")"
 
 instance ArithmeticF :<: f => Parseable ArithmeticF f where
     parser _ r = choice [ cnst', add', mul', divides', lessThan' ] <?> "Arithmetic" where

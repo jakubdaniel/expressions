@@ -14,7 +14,6 @@
 module Data.Expression.Utils.Indexed.Functor (IFix(..), IFunctor(..), icata) where
 
 import Data.Functor.Const
-import Data.Kind
 import Data.Singletons
 
 import Data.Expression.Utils.Indexed.Eq

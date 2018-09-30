@@ -20,6 +20,7 @@
 module Data.Expression.Equality ( EqualityF(..)
                                 , (.=.) ) where
 
+import Data.Coerce
 import Data.Functor.Const
 import Data.Singletons
 import Data.Singletons.Decide
@@ -47,13 +48,13 @@ instance IFunctor EqualityF where
     index (Equals _ _ _) = SBooleanSort
 
 instance IFoldable EqualityF where
-    ifold (Equals _ a b) = Const (getConst a) <> Const (getConst b)
+    ifold (Equals _ a b) = coerce a <> coerce b
 
 instance ITraversable EqualityF where
     itraverse f (Equals s a b) = Equals s <$> f a <*> f b
 
 instance IShow EqualityF where
-    ishow (Equals _ a b) = Const $ "(= " ++ getConst a ++ " " ++ getConst b ++ ")"
+    ishow (Equals _ a b) = coerce $ "(= " ++ coerce a ++ " " ++ coerce b ++ ")"
 
 instance EqualityF :<: f => Parseable EqualityF f where
     parser _ r = do

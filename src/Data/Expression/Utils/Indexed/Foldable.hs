@@ -13,7 +13,6 @@
 module Data.Expression.Utils.Indexed.Foldable (IFoldable(..)) where
 
 import Data.Functor.Const
-import Data.Kind
 
 -- | Type constructors (usually functors) that can be folded
 class IFoldable (f :: (i -> *) -> (i -> *)) where

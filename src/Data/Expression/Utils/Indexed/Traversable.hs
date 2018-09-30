@@ -14,7 +14,6 @@
 module Data.Expression.Utils.Indexed.Traversable where
 
 import Control.Monad
-import Data.Kind
 
 import Data.Expression.Utils.Indexed.Functor
 

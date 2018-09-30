@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts
            , FlexibleInstances
            , GADTs
+           , InstanceSigs
            , MultiParamTypeClasses
            , OverloadedStrings
            , RankNTypes
@@ -20,6 +21,7 @@
 module Data.Expression.IfThenElse ( IfThenElseF(..)
                                   , ite ) where
 
+import Data.Coerce
 import Data.Functor.Const
 import Data.Singletons
 import Data.Singletons.Decide
@@ -47,13 +49,14 @@ instance IFunctor IfThenElseF where
     index (IfThenElse s _ _ _) = s
 
 instance IFoldable IfThenElseF where
-    ifold (IfThenElse _ i t e) = Const $ getConst i <> getConst t <> getConst e
+    ifold :: forall m (s :: Sort). Monoid m => IfThenElseF (Const m) s -> Const m s
+    ifold (IfThenElse _ i t e) = coerce ((coerce i <> coerce t <> coerce e) :: m)
 
 instance ITraversable IfThenElseF where
     itraverse f (IfThenElse s i t e) = IfThenElse s <$> f i <*> f t <*> f e
 
 instance IShow IfThenElseF where
-    ishow (IfThenElse _ i t e) = Const $ "(ite " ++ getConst i ++ " " ++ getConst t ++ " " ++ getConst e ++ ")"
+    ishow (IfThenElse _ i t e) = coerce $ "(ite " ++ coerce i ++ " " ++ coerce t ++ " " ++ coerce e ++ ")"
 
 instance IfThenElseF :<: f => Parseable IfThenElseF f where
     parser _ r = do

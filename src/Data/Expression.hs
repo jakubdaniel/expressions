@@ -2,6 +2,7 @@
            , FlexibleContexts
            , FlexibleInstances
            , GADTs
+           , InstanceSigs
            , MultiParamTypeClasses
            , OverloadedStrings
            , RankNTypes
@@ -78,6 +79,7 @@ module Data.Expression ( module Data.Expression.Arithmetic
 
                        -- Smart expression constructors
                        , var
+                       , dynvar
                        , true
                        , false
                        , and
@@ -100,6 +102,9 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        , disjuncts
                        , vars
                        , freevars
+
+                       -- Utilities
+                       , freenames
 
                        -- Predicates
                        , MaybeQuantified
@@ -126,6 +131,7 @@ import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
+import Data.Coerce
 import Data.Functor.Identity
 import Data.List hiding (and, or, union)
 import Data.Map hiding (map, drop, foldl, foldr, mapMaybe, partition)
@@ -278,7 +284,7 @@ instance VarF :<: f => Parseable VarF f where
             var''' n s
 
         var''' :: VariableName -> DynamicSort -> Parser (DynamicallySorted f)
-        var''' n (DynamicSort (s :: Sing s)) = return $ DynamicallySorted s (inject (Var n s))
+        var''' n (DynamicSort (s :: Sing s)) = return $ dynvar n s
 
 -- | A smart constructor for variables of any sort in any language
 -- Takes the variable name and infers the target language and sort from context.
@@ -289,11 +295,15 @@ instance VarF :<: f => Parseable VarF f where
 var :: forall f s. ( VarF :<: f, SingI s ) => VariableName -> IFix f s
 var n = inject (Var n (sing :: Sing s))
 
+-- | Like @var@ except it hides the sort inside @DynamicallySorted@
+dynvar :: forall f (s :: Sort). VarF :<: f => VariableName -> Sing s -> DynamicallySorted f
+dynvar n s = DynamicallySorted s $ withSort s $ var n
+
 -- | Collects a list of all variables occurring in an expression (bound or free).
 vars :: ( VarF :<: f, IFoldable f, IFunctor f ) => IFix f s -> [DynamicallySorted VarF]
 vars = nub . F.getConst . icata vars' where
     vars' a = case prj a of
-        Just (Var n s) -> F.Const [DynamicallySorted s . inject $ Var n s]
+        Just (Var n s) -> F.Const [dynvar n s]
         Nothing -> ifold a
 
 -- | Substitution that given an expression produces replacement if the expression is to be replaced or nothing otherwise.
@@ -352,10 +362,12 @@ instance IFunctor NegationF where
     index Not {} = SBooleanSort
 
 instance IFoldable ConjunctionF where
-    ifold (And as) = F.Const . mconcat . map F.getConst $ as
+    ifold :: forall m (s :: Sort). Monoid m => ConjunctionF (F.Const m) s -> F.Const m s
+    ifold (And as) = coerce (mconcat :: [m] -> m) as
 
 instance IFoldable DisjunctionF where
-    ifold (Or os) = F.Const . mconcat . map F.getConst $ os
+    ifold :: forall m (s :: Sort). Monoid m => DisjunctionF (F.Const m) s -> F.Const m s
+    ifold (Or os) = coerce (mconcat :: [m] -> m) os
 
 instance IFoldable NegationF where
     ifold (Not n) = n
@@ -370,15 +382,15 @@ instance ITraversable NegationF where
     itraverse f (Not n) = Not <$> f n
 
 instance IShow ConjunctionF where
-    ishow (And []) = F.Const $ "true"
-    ishow (And as) = F.Const $ "(and " ++ intercalate " " (map F.getConst as) ++ ")"
+    ishow (And []) = coerce ("true" :: String)
+    ishow (And as) = coerce $ "(and " ++ intercalate " " (coerce as) ++ ")"
 
 instance IShow DisjunctionF where
-    ishow (Or []) = F.Const $ "false"
-    ishow (Or os) = F.Const $ "(or "  ++ intercalate " " (map F.getConst os) ++ ")"
+    ishow (Or []) = coerce ("false" :: String)
+    ishow (Or os) = coerce $ "(or "  ++ intercalate " " (coerce os) ++ ")"
 
 instance IShow NegationF where
-    ishow (Not n)  = F.Const $ "(not " ++ F.getConst n ++ ")"
+    ishow (Not n)  = coerce $ "(not " ++ coerce n ++ ")"
 
 instance ConjunctionF :<: f => Parseable ConjunctionF f where
     parser _ r = choice [ true',  and' ] <?> "Conjunction" where
@@ -545,10 +557,10 @@ instance ITraversable (ExistentialF v) where
     itraverse f (Exists vs b) = Exists vs <$> f b
 
 instance IShow (UniversalF v) where
-    ishow (Forall vs phi) = F.Const $ "(forall (" ++ intercalate " " (map show vs) ++ ") " ++ F.getConst phi ++ ")"
+    ishow (Forall vs phi) = coerce $ "(forall (" ++ intercalate " " (map show vs) ++ ") " ++ coerce phi ++ ")"
 
 instance IShow (ExistentialF v) where
-    ishow (Exists vs phi) = F.Const $ "(exists (" ++ intercalate " " (map show vs) ++ ") " ++ F.getConst phi ++ ")"
+    ishow (Exists vs phi) = coerce $ "(exists (" ++ intercalate " " (map show vs) ++ ") " ++ coerce phi ++ ")"
 
 instance ( UniversalF v :<: f, SingI v ) => Parseable (UniversalF v) f where
     parser _ r = forall' <?> "Universal" where
@@ -603,16 +615,16 @@ class MaybeQuantified f where
     freevars' :: f (F.Const [DynamicallySorted VarF]) s -> F.Const [DynamicallySorted VarF] s
 
 instance MaybeQuantified VarF where
-    isQuantified' _ = F.Const (Any False)
-    freevars' (Var n s) = F.Const [DynamicallySorted s . inject $ Var n s]
+    isQuantified' _ = coerce False
+    freevars' (Var n s) = coerce [dynvar n s]
 
 instance MaybeQuantified (UniversalF v) where
-    isQuantified' _ = F.Const (Any True)
-    freevars' (Forall vs a) = F.Const . P.filter (`notElem` map (\v@(IFix (Var _ s)) -> DynamicallySorted s v) vs) . F.getConst $ a
+    isQuantified' _ = coerce True
+    freevars' (Forall vs a) = coerce (P.filter (`notElem` map (\v@(IFix (Var _ s)) -> DynamicallySorted s v) vs)) a
 
 instance MaybeQuantified (ExistentialF v) where
-    isQuantified' _ = F.Const (Any True)
-    freevars' (Exists vs a) = F.Const . P.filter (`notElem` map (\v@(IFix (Var _ s)) -> DynamicallySorted s v) vs) . F.getConst $ a
+    isQuantified' _ = coerce True
+    freevars' (Exists vs a) = coerce (P.filter (`notElem` map (\v@(IFix (Var _ s)) -> DynamicallySorted s v) vs)) a
 
 instance ( MaybeQuantified f, MaybeQuantified g ) => MaybeQuantified (f :+: g) where
     isQuantified' (InL fa) = isQuantified' fa
@@ -626,7 +638,7 @@ instance {-# OVERLAPPABLE #-} ( IFunctor f, IFoldable f ) => MaybeQuantified f w
 
 -- | Test whether an expression contains a quantifier.
 isQuantified :: MaybeQuantified f => IFix f s -> Bool
-isQuantified = getAny . F.getConst . isQuantified' . unIFix
+isQuantified = coerce . isQuantified' . unIFix
 
 -- | Tests whether an expression is free of any quantifier.
 isQuantifierFree :: MaybeQuantified f => IFix f s -> Bool
@@ -634,7 +646,7 @@ isQuantifierFree = P.not . isQuantified
 
 -- | Collects a list of all free variables occurring in an expression.
 freevars :: ( IFunctor f, MaybeQuantified f ) => IFix f s -> [DynamicallySorted VarF]
-freevars = nub . F.getConst . icata freevars'
+freevars = nub . coerce . icata freevars'
 
 -- | A smart constructor for universally quantified formulae
 forall :: UniversalF v :<: f => [Var v] -> IFix f 'BooleanSort -> IFix f 'BooleanSort

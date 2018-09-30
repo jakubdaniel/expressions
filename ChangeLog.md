@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.3
+
+* Cleanup, GHC 8.6
+
 ## 0.2
 
 * Add `embed` and `restrict` to convert between expression languages

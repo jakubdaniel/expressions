@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -fno-warn-unused-binds #-}
 
-{-# LANGUAGE EmptyCase
-           , DataKinds
+{-# LANGUAGE DataKinds
+           , EmptyCase
+           , FlexibleInstances
            , GADTs
            , KindSignatures
            , OverloadedStrings
@@ -25,6 +26,7 @@
 
 module Data.Expression.Sort ( Sort(..)
                             , Sing(..)
+                            , withSort
                             , DynamicSort(..)
                             , DynamicallySorted(..)
                             , parseSort
@@ -34,7 +36,6 @@ module Data.Expression.Sort ( Sort(..)
 
 import Data.Attoparsec.Text
 import Data.Functor
-import Data.Kind
 import Data.Singletons
 import Data.Singletons.Decide
 import Data.Singletons.TH
@@ -51,6 +52,12 @@ data Sort = BooleanSort                                  -- ^ booleans (true, fa
 
 genSingletons [''Sort]
 singDecideInstance ''Sort
+
+-- | Turn implicit sort parameter into explicit one
+withSort :: forall a (s :: Sort). Sing s -> (SingI s => a) -> a
+withSort SBooleanSort     a = a
+withSort SIntegralSort    a = a
+withSort (SArraySort i e) a = withSort i $ withSort e $ a
 
 show' :: Sort -> String
 show' BooleanSort     = "bool"

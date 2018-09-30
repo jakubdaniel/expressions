@@ -21,6 +21,7 @@ module Data.Expression.Array ( ArrayF(..)
                              , select
                              , store ) where
 
+import Data.Coerce
 import Data.Functor.Const
 import Data.Singletons
 import Data.Singletons.Decide
@@ -54,16 +55,16 @@ instance IFunctor ArrayF where
     index (Store  is es _ _ _) = SArraySort is es
 
 instance IFoldable ArrayF where
-    ifold (Select _ _ a i)   = Const (getConst a) <> Const (getConst i)
-    ifold (Store  _ _ a i e) = Const (getConst a) <> Const (getConst i) <> Const (getConst e)
+    ifold (Select _ _ a i)   = coerce a <> coerce i
+    ifold (Store  _ _ a i e) = coerce a <> coerce i <> coerce e
 
 instance ITraversable ArrayF where
     itraverse f (Select is es a i)   = Select is es <$> f a <*> f i
     itraverse f (Store  is es a i e) = Store  is es <$> f a <*> f i <*> f e
 
 instance IShow ArrayF where
-    ishow (Select _ _ a i)   = Const $ "(select " ++ getConst a ++ " " ++ getConst i ++ ")"
-    ishow (Store  _ _ a i v) = Const $ "(store " ++ getConst a ++ " " ++ getConst i ++ " " ++ getConst v ++ ")"
+    ishow (Select _ _ a i)   = coerce $ "(select " ++ coerce a ++ " " ++ coerce i ++ ")"
+    ishow (Store  _ _ a i v) = coerce $ "(store " ++ coerce a ++ " " ++ coerce i ++ " " ++ coerce v ++ ")"
 
 instance ArrayF :<: f => Parseable ArrayF f where
     parser _ r = choice [ select', store' ] <?> "Array" where

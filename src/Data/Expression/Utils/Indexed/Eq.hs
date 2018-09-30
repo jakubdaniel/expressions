@@ -12,8 +12,6 @@
 
 module Data.Expression.Utils.Indexed.Eq where
 
-import Data.Kind
-
 -- | Indexed types that can be equated
 class IEq (a :: i -> *) where
     ieq :: forall j. a j -> a j -> Bool
