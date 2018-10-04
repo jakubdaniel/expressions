@@ -1,5 +1,5 @@
 name:                expressions
-version:             0.3
+version:             0.3.1
 synopsis:            Expressions and Formulae a la carte
 description:
   This package is aimed at providing means of fixing a first-order language and

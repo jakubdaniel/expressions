@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.3.1
+
+* Utility for extracting constants from expressions
+
 ## 0.3
 
 * Cleanup, GHC 8.6

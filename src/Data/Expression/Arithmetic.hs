@@ -19,6 +19,7 @@
 
 module Data.Expression.Arithmetic ( ArithmeticF(..)
                                   , cnst
+                                  , cnsts
                                   , add
                                   , mul
                                   , (.+.)
@@ -149,6 +150,14 @@ instance ArithmeticF :<: f => Parseable ArithmeticF f where
 -- | A smart constructor for integer constants
 cnst :: ArithmeticF :<: f => Int -> IFix f 'IntegralSort
 cnst = inject . Const
+
+-- | Collects a list of all constants occurring in an expression.
+cnsts :: forall f (s :: Sort). ( ArithmeticF :<: f, IFoldable f, IFunctor f, IEq1 f ) => IFix f s -> [IFix f 'IntegralSort]
+cnsts = nub . F.getConst . icata cnsts' where
+    cnsts' :: forall (s' :: Sort). f (F.Const [IFix f 'IntegralSort]) s' -> F.Const [IFix f 'IntegralSort] s'
+    cnsts' a = case prj a of
+        Just (Const c) -> F.Const [cnst c]
+        _              -> ifold a
 
 mergeConstAdd :: ArithmeticF :<: f => IFix f 'IntegralSort -> (Int, [IFix f 'IntegralSort]) -> (Int, [IFix f 'IntegralSort])
 mergeConstAdd e (acc, r) = case match e of
