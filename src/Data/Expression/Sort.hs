@@ -6,6 +6,7 @@
            , GADTs
            , KindSignatures
            , OverloadedStrings
+           , QuantifiedConstraints
            , RankNTypes
            , ScopedTypeVariables
            , TemplateHaskell
@@ -29,6 +30,7 @@ module Data.Expression.Sort ( Sort(..)
                             , withSort
                             , DynamicSort(..)
                             , DynamicallySorted(..)
+                            , DynamicallySortedFix
                             , parseSort
                             , toDynamicallySorted
                             , toStaticSort
@@ -40,9 +42,7 @@ import Data.Singletons
 import Data.Singletons.Decide
 import Data.Singletons.TH
 
-import Data.Expression.Utils.Indexed.Eq
 import Data.Expression.Utils.Indexed.Functor
-import Data.Expression.Utils.Indexed.Show
 
 -- | A universe of recognized sorts
 data Sort = BooleanSort                                  -- ^ booleans (true, false)
@@ -86,16 +86,19 @@ instance Eq DynamicSort where
         Proved Refl -> True
         Disproved _ -> False
 
--- | An expression of some sort (obtained for example during parsing)
-data DynamicallySorted (f :: (Sort -> *) -> (Sort -> *)) where
-  DynamicallySorted :: forall (s :: Sort) f. Sing s -> IFix f s -> DynamicallySorted f
+-- | A value of some sort
+data DynamicallySorted (d :: Sort -> *) where
+  DynamicallySorted :: forall (s :: Sort) d. Sing s -> d s -> DynamicallySorted d
 
-instance IEq1 f => Eq (DynamicallySorted f) where
+-- | An expression of some sort (obtained for example during parsing)
+type DynamicallySortedFix f = DynamicallySorted (IFix f)
+
+instance (forall (s :: Sort). Eq (d s)) => Eq (DynamicallySorted d) where
     DynamicallySorted sa a == DynamicallySorted sb b = case sa %~ sb of
         Proved Refl -> a == b
         Disproved _ -> False
 
-instance (IFunctor f, IShow f) => Show (DynamicallySorted f) where
+instance (forall (s :: Sort). Show (d s)) => Show (DynamicallySorted d) where
     show (DynamicallySorted _ a) = show a
 
 -- | Tries to convert some sort (`DynamicSort`) to a requested sort.
@@ -106,12 +109,12 @@ toStaticSort dx = case dx of
         Disproved _ -> Nothing
 
 -- | Converts a statically sorted expression to a dynamically sorted one.
-toDynamicallySorted :: forall f (s :: Sort). SingI s => IFix f s -> DynamicallySorted f
+toDynamicallySorted :: forall d (s :: Sort). SingI s => d s -> DynamicallySorted d
 toDynamicallySorted = DynamicallySorted (sing :: Sing s)
 
 -- | Tries to convert an expression (`DynamicallySorted`) of some sort to an expression of requested sort.
 -- Performs no conversions.
-toStaticallySorted :: forall f (s :: Sort). SingI s => DynamicallySorted f -> Maybe (IFix f s)
+toStaticallySorted :: forall d (s :: Sort). SingI s => DynamicallySorted d -> Maybe (d s)
 toStaticallySorted dx = case dx of
     DynamicallySorted s x -> case s %~ (sing :: Sing s) of
         Proved Refl -> Just x

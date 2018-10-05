@@ -65,7 +65,7 @@ instance EqualityF :<: f => Parseable EqualityF f where
         _ <- char ')'
         equals a b <?> "Equality" where
 
-        equals :: DynamicallySorted f -> DynamicallySorted f -> Parser (DynamicallySorted f)
+        equals :: DynamicallySortedFix f -> DynamicallySortedFix f -> Parser (DynamicallySortedFix f)
         equals (DynamicallySorted s1 a)
                (DynamicallySorted s2 b) = case s1 %~ s2 of
             Proved Refl -> return . toDynamicallySorted . inject $ Equals s1 a b

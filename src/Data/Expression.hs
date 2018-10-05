@@ -283,7 +283,7 @@ instance VarF :<: f => Parseable VarF f where
 
             var''' n s
 
-        var''' :: VariableName -> DynamicSort -> Parser (DynamicallySorted f)
+        var''' :: VariableName -> DynamicSort -> Parser (DynamicallySortedFix f)
         var''' n (DynamicSort (s :: Sing s)) = return $ dynvar n s
 
 -- | A smart constructor for variables of any sort in any language
@@ -295,12 +295,12 @@ instance VarF :<: f => Parseable VarF f where
 var :: forall f s. ( VarF :<: f, SingI s ) => VariableName -> IFix f s
 var n = inject (Var n (sing :: Sing s))
 
--- | Like @var@ except it hides the sort inside @DynamicallySorted@
-dynvar :: forall f (s :: Sort). VarF :<: f => VariableName -> Sing s -> DynamicallySorted f
+-- | Like @var@ except it hides the sort inside @DynamicallySortedFix@
+dynvar :: forall f (s :: Sort). VarF :<: f => VariableName -> Sing s -> DynamicallySortedFix f
 dynvar n s = DynamicallySorted s $ withSort s $ var n
 
 -- | Collects a list of all variables occurring in an expression (bound or free).
-vars :: ( VarF :<: f, IFoldable f, IFunctor f ) => IFix f s -> [DynamicallySorted VarF]
+vars :: ( VarF :<: f, IFoldable f, IFunctor f ) => IFix f s -> [DynamicallySorted Var]
 vars = nub . F.getConst . icata vars' where
     vars' a = case prj a of
         Just (Var n s) -> F.Const [dynvar n s]
@@ -564,7 +564,7 @@ instance IShow (ExistentialF v) where
 
 instance ( UniversalF v :<: f, SingI v ) => Parseable (UniversalF v) f where
     parser _ r = forall' <?> "Universal" where
-        var' :: Parser (DynamicallySorted VarF)
+        var' :: Parser (DynamicallySorted Var)
         var' = parser (Proxy :: Proxy VarF) var'
 
         forall' = do
@@ -588,7 +588,7 @@ instance ( UniversalF v :<: f, SingI v ) => Parseable (UniversalF v) f where
 
 instance ( ExistentialF v :<: f, SingI v ) => Parseable (ExistentialF v) f where
     parser _ r = exists' <?> "Existential" where
-        var' :: Parser (DynamicallySorted VarF)
+        var' :: Parser (DynamicallySorted Var)
         var' = parser (Proxy :: Proxy VarF) var'
 
         exists' = do
@@ -612,11 +612,11 @@ instance ( ExistentialF v :<: f, SingI v ) => Parseable (ExistentialF v) f where
 
 class MaybeQuantified f where
     isQuantified' :: MaybeQuantified g => f (IFix g) s -> F.Const Any s
-    freevars' :: f (F.Const [DynamicallySorted VarF]) s -> F.Const [DynamicallySorted VarF] s
+    freevars' :: f (F.Const [DynamicallySorted Var]) s -> F.Const [DynamicallySorted Var] s
 
 instance MaybeQuantified VarF where
     isQuantified' _ = coerce False
-    freevars' (Var n s) = coerce [dynvar n s]
+    freevars' (Var n s) = coerce [dynvar n s :: DynamicallySorted Var]
 
 instance MaybeQuantified (UniversalF v) where
     isQuantified' _ = coerce True
@@ -645,7 +645,7 @@ isQuantifierFree :: MaybeQuantified f => IFix f s -> Bool
 isQuantifierFree = P.not . isQuantified
 
 -- | Collects a list of all free variables occurring in an expression.
-freevars :: ( IFunctor f, MaybeQuantified f ) => IFix f s -> [DynamicallySorted VarF]
+freevars :: ( IFunctor f, MaybeQuantified f ) => IFix f s -> [DynamicallySorted Var]
 freevars = nub . coerce . icata freevars'
 
 -- | A smart constructor for universally quantified formulae
@@ -753,7 +753,7 @@ prenex :: forall f. Prenex f => IFix f 'BooleanSort -> IFix f 'BooleanSort
 prenex f = let (a, (_, q)) = runState (imapM (pushQuantifier . unIFix) (nnf f)) (freenames f, id) in q a
 
 class Bind f g where
-    bind :: Proxy f -> IFix g s -> Maybe (Bool, State (VariableNamePool, [([DynamicallySorted VarF], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s))
+    bind :: Proxy f -> IFix g s -> Maybe (Bool, State (VariableNamePool, [([DynamicallySorted Var], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s))
 
 instance forall g v. ( VarF :<: g, EqualityF :<: g, NegationF :<: g, DisjunctionF :<: g, UniversalF v :<: g, MaybeQuantified g, SingI v ) => Bind (UniversalF v) g where
     bind _ a = case index (unIFix a) %~ (sing :: Sing v) of
@@ -799,7 +799,7 @@ instance {-# OVERLAPPABLE #-} Bind f g where
     bind _ _ = Nothing
 
 class Bind' f g where
-    bind' :: Bind g g => f (IFix g) s -> Maybe (Bool, State (VariableNamePool, [([DynamicallySorted VarF], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s))
+    bind' :: Bind g g => f (IFix g) s -> Maybe (Bool, State (VariableNamePool, [([DynamicallySorted Var], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s))
 
 instance VarF :<: g => Bind' VarF g where
     bind' v = Just (True, return . inject $ v)
@@ -823,11 +823,11 @@ instance ( Bind' f h, Bind' g h ) => Bind' (f :+: g) h where
 instance {-# OVERLAPPABLE #-} f :<: g => Bind' f g where
     bind' a = bind (Proxy :: Proxy g) (inject a)
 
-bind'' :: forall f (s :: Sort). ( Bind f f, Bind' f f ) => IFix f s -> State (VariableNamePool, [([DynamicallySorted VarF], IFix f 'BooleanSort -> IFix f 'BooleanSort)]) (IFix f s)
+bind'' :: forall f (s :: Sort). ( Bind f f, Bind' f f ) => IFix f s -> State (VariableNamePool, [([DynamicallySorted Var], IFix f 'BooleanSort -> IFix f 'BooleanSort)]) (IFix f s)
 bind'' a = fromMaybe (return a) . fmap snd . bind' . unIFix $ a
 
 class MaybeQuantified'' f g where
-    flatten' :: ( Bind g g, Bind' g g ) => f (IFix g) s -> State (VariableNamePool, [([DynamicallySorted VarF], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s)
+    flatten' :: ( Bind g g, Bind' g g ) => f (IFix g) s -> State (VariableNamePool, [([DynamicallySorted Var], IFix g 'BooleanSort -> IFix g 'BooleanSort)]) (IFix g s)
 
 instance ArrayF :<: g => MaybeQuantified'' ArrayF g where
     flatten' (Select is es a i) = do

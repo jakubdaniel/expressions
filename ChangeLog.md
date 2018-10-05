@@ -1,5 +1,10 @@
 # Change Log
 
+## 0.4.2
+
+* Allow a wide range of dynamically sorted values (not just expressions)
+* Utility for extracting array accesses
+
 ## 0.3.1
 
 * Utility for extracting constants from expressions

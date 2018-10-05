@@ -69,7 +69,7 @@ instance IfThenElseF :<: f => Parseable IfThenElseF f where
         _ <- char ')'
         ifThenElse i t e <?> "IfThenElse" where
 
-        ifThenElse :: DynamicallySorted f -> DynamicallySorted f -> DynamicallySorted f -> Parser (DynamicallySorted f)
+        ifThenElse :: DynamicallySortedFix f -> DynamicallySortedFix f -> DynamicallySortedFix f -> Parser (DynamicallySortedFix f)
         ifThenElse (DynamicallySorted s1 i)
                    (DynamicallySorted s2 t)
                    (DynamicallySorted s3 e) = case s1 %~ SBooleanSort of

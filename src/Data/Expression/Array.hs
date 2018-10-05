@@ -1,6 +1,8 @@
-{-# LANGUAGE FlexibleContexts
+{-# LANGUAGE DerivingVia
+           , FlexibleContexts
            , FlexibleInstances
            , GADTs
+           , LiberalTypeSynonyms
            , MultiParamTypeClasses
            , OverloadedStrings
            , RankNTypes
@@ -19,8 +21,15 @@
 
 module Data.Expression.Array ( ArrayF(..)
                              , select
-                             , store ) where
+                             , store
+                             , accesses
+                             , toStaticallySortedArrayAccess
+                             , ArrayAccess(..)
+                             , DynamicValueArrayAccess(..)
+                             , DynamicArrayAccess ) where
 
+import Control.Monad
+import Control.Monad.Trans.Writer
 import Data.Coerce
 import Data.Functor.Const
 import Data.Singletons
@@ -85,14 +94,14 @@ instance ArrayF :<: f => Parseable ArrayF f where
             _ <- char ')'
             store'' a i v
 
-        select'' :: DynamicallySorted f -> DynamicallySorted f -> Parser (DynamicallySorted f)
+        select'' :: DynamicallySortedFix f -> DynamicallySortedFix f -> Parser (DynamicallySortedFix f)
         select'' (DynamicallySorted (SArraySort is1 es) a)
                  (DynamicallySorted is2                 i) = case is1 %~ is2 of
             Proved Refl -> return . DynamicallySorted es $ inject (Select is1 es a i)
             Disproved _ -> fail "ill-sorted select"
         select'' _ _ = fail "selecting from non-array"
 
-        store'' :: DynamicallySorted f -> DynamicallySorted f -> DynamicallySorted f -> Parser (DynamicallySorted f)
+        store'' :: DynamicallySortedFix f -> DynamicallySortedFix f -> DynamicallySortedFix f -> Parser (DynamicallySortedFix f)
         store''  (DynamicallySorted as@(SArraySort _ _) a)
                  (DynamicallySorted is                  i)
                  (DynamicallySorted es                  v) = case as %~ SArraySort is es of
@@ -107,3 +116,38 @@ select a i = inject (Select sing sing a i)
 -- | A smart constructor for store
 store :: ( ArrayF :<: f, SingI i, SingI e ) => IFix f ('ArraySort i e) -> IFix f i -> IFix f e -> IFix f ('ArraySort i e)
 store a i v = inject (Store sing sing a i v)
+
+type Array f (e :: Sort) (i :: Sort) = IFix f ('ArraySort i e)
+type Index f (i :: Sort)             = IFix f i
+
+newtype ArrayAccess             f (i :: Sort) (e :: Sort) = ArrayAccess             { getAA   :: (Array f e i, Index f i) }            deriving Show via (Array f e i, Index f i)
+newtype DynamicValueArrayAccess f (i :: Sort)             = DynamicValueArrayAccess { getDVAA :: DynamicallySorted (ArrayAccess f i) } deriving Show via (DynamicallySorted (ArrayAccess f i))
+type    DynamicArrayAccess      f                         = DynamicallySorted (DynamicValueArrayAccess f)
+
+-- | Tries to convert access to an array of some sort to an access to an array of a specific sort
+toStaticallySortedArrayAccess :: forall f (i :: Sort) (e :: Sort). ( SingI i, SingI e ) => DynamicArrayAccess f -> Maybe (IFix f ('ArraySort i e), IFix f i)
+toStaticallySortedArrayAccess = elementSort <=< indexSort where
+  elementSort :: DynamicallySorted (ArrayAccess f i) -> Maybe (Array f e i, Index f i)
+  elementSort = fmap getAA . toStaticallySorted
+
+  indexSort :: DynamicArrayAccess f -> Maybe (DynamicallySorted (ArrayAccess f i))
+  indexSort = fmap getDVAA . toStaticallySorted
+
+-- | Collects pairs of arrays and indices that appear together in some @select@ and/or @store@ within an expression
+accesses :: forall f (s :: Sort). ( ArrayF :<: f, ITraversable f ) => IFix f s -> [DynamicArrayAccess f]
+accesses = execWriter . imapM accesses' where
+  accesses' :: forall (s' :: Sort). IFix f s' -> Writer [DynamicArrayAccess f] (IFix f s')
+  accesses' e = do
+    case match e of
+      Just (Select is es a i)   -> tell [ DynamicallySorted is
+                                        $ DynamicValueArrayAccess
+                                        $ DynamicallySorted es
+                                        $ ArrayAccess
+                                        $ (a, i) ]
+      Just (Store  is es a i _) -> tell [ DynamicallySorted is
+                                        $ DynamicValueArrayAccess
+                                        $ DynamicallySorted es
+                                        $ ArrayAccess
+                                        $ (a, i) ]
+      _                         -> return ()
+    return e

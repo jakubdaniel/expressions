@@ -63,7 +63,7 @@ type Parser  = ReaderT Context (StateT Context A.Parser)
 
 -- | Expressions that can be parsed
 class Parseable f g where
-    parser :: Proxy f -> Parser (DynamicallySorted g) -> Parser (DynamicallySorted g)
+    parser :: Proxy f -> Parser (DynamicallySortedFix g) -> Parser (DynamicallySortedFix g)
 
 -- | Tries to parse the entire input text and produce an expression in desired language and with desired sort.
 parse :: forall f (s :: Sort). ( Parseable f f, SingI s ) => Text -> Maybe (IFix f s)
