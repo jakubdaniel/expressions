@@ -58,9 +58,6 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        , QFALia
                        , ALia
 
-                       -- Algebraic view of languages
-                       , ComplementedLattice(..)
-
                        -- Convenient type synonyms
                        , VariableName
 
@@ -124,6 +121,7 @@ module Data.Expression ( module Data.Expression.Arithmetic
                        , Unstore
                        , unstore ) where
 
+import Algebra.Heyting
 import Algebra.Lattice
 import Control.Applicative hiding (Const)
 import Control.Comonad.Trans.Coiter
@@ -191,30 +189,27 @@ type QFALia  = IFix QFALiaF
 -- | A language obtained as fixpoint of `ALiaF`
 type   ALia  = IFix   ALiaF
 
--- | Bounded lattices that support complementing elements
---
--- prop> complement . complement = id
--- 
-class BoundedLattice a => ComplementedLattice a where
-    complement :: a -> a
 
-instance JoinSemiLattice (QFLogic 'BooleanSort) where a `join` b = a .|. b
-instance JoinSemiLattice (QFLia   'BooleanSort) where a `join` b = a .|. b
-instance JoinSemiLattice (  Lia   'BooleanSort) where a `join` b = a .|. b
-instance JoinSemiLattice (QFALia  'BooleanSort) where a `join` b = a .|. b
-instance JoinSemiLattice (  ALia  'BooleanSort) where a `join` b = a .|. b
+instance Lattice (QFLogic 'BooleanSort) where
+    a /\ b = a .&. b
+    a \/ b = a .|. b
 
-instance MeetSemiLattice (QFLogic 'BooleanSort) where a `meet` b = a .&. b
-instance MeetSemiLattice (QFLia   'BooleanSort) where a `meet` b = a .&. b
-instance MeetSemiLattice (  Lia   'BooleanSort) where a `meet` b = a .&. b
-instance MeetSemiLattice (QFALia  'BooleanSort) where a `meet` b = a .&. b
-instance MeetSemiLattice (  ALia  'BooleanSort) where a `meet` b = a .&. b
+instance Lattice (QFLia   'BooleanSort) where
+    a /\ b = a .&. b
+    a \/ b = a .|. b
 
-instance Lattice (QFLogic 'BooleanSort)
-instance Lattice (QFLia   'BooleanSort)
-instance Lattice (  Lia   'BooleanSort)
-instance Lattice (QFALia  'BooleanSort)
-instance Lattice (  ALia  'BooleanSort)
+instance Lattice (  Lia   'BooleanSort) where
+    a /\ b = a .&. b
+    a \/ b = a .|. b
+
+instance Lattice (QFALia  'BooleanSort) where
+    a /\ b = a .&. b
+    a \/ b = a .|. b
+
+instance Lattice (  ALia  'BooleanSort) where
+    a /\ b = a .&. b
+    a \/ b = a .|. b
+
 
 instance BoundedJoinSemiLattice (QFLogic 'BooleanSort) where bottom = false
 instance BoundedJoinSemiLattice (QFLia   'BooleanSort) where bottom = false
@@ -228,17 +223,21 @@ instance BoundedMeetSemiLattice (  Lia   'BooleanSort) where top = true
 instance BoundedMeetSemiLattice (QFALia  'BooleanSort) where top = true
 instance BoundedMeetSemiLattice (  ALia  'BooleanSort) where top = true
 
-instance BoundedLattice (QFLogic 'BooleanSort)
-instance BoundedLattice (QFLia   'BooleanSort)
-instance BoundedLattice (  Lia   'BooleanSort)
-instance BoundedLattice (QFALia  'BooleanSort)
-instance BoundedLattice (  ALia  'BooleanSort)
+instance Heyting (QFLogic 'BooleanSort) where
+    a ==> b = nnf (not a \/ b)
 
-instance ComplementedLattice (QFLogic 'BooleanSort) where complement = nnf . not
-instance ComplementedLattice (QFLia   'BooleanSort) where complement = nnf . not
-instance ComplementedLattice (  Lia   'BooleanSort) where complement = nnf . not
-instance ComplementedLattice (QFALia  'BooleanSort) where complement = nnf . not
-instance ComplementedLattice (  ALia  'BooleanSort) where complement = nnf . not
+instance Heyting (QFLia   'BooleanSort) where
+    a ==> b = nnf (not a \/ b)
+
+instance Heyting (  Lia   'BooleanSort) where
+    a ==> b = nnf (not a \/ b)
+
+instance Heyting (QFALia  'BooleanSort) where
+    a ==> b = nnf (not a \/ b)
+
+instance Heyting (  ALia  'BooleanSort) where
+    a ==> b = nnf (not a \/ b)
+
 
 -- | Type of names assigned to variables
 type VariableName = String

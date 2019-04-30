@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.5
+
+* Switch to lattices-2
+
 ## 0.4.2
 
 * Allow a wide range of dynamically sorted values (not just expressions)
